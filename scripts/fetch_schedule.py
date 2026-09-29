@@ -8,16 +8,15 @@
 import sys
 from datetime import date, datetime, timedelta
 
-from common import (CC_BASE, DAYS_DIR, MOVIES_DIR, NETANYA_TIX_ID, VENUE_ALL,
+from common import (CC_BASE, DAYS_DIR, MOVIES_DIR, NETANYA_TIX_ID, VENUE_ALL, now_il, today_il,
                     VENUE_PRIME, http_get, parse_cc_name, read_md, watched_slugs,
                     write_md)
 from fetch_movie import ensure_movie
-from build_site import build
 from fetch_ratings import ratings_line, update_ratings
 
 
 def weekend_dates(today=None):
-    today = today or date.today()
+    today = today or today_il()
     wd = today.weekday()  # пн=0 ... пт=4, сб=5
     if wd == 4:
         return [today, today + timedelta(days=1)]
@@ -69,7 +68,7 @@ def merge_previous(d, sessions):
     if not path.exists():
         return sessions
     current = {s["event_id"] for s in sessions}
-    now = datetime.now()
+    now = now_il().replace(tzinfo=None)  # сеансы хранятся в местном времени без пояса
     for old in read_md(path)[0].get("sessions") or []:
         if old.get("event_id") in current:
             continue
@@ -129,7 +128,7 @@ def write_day(d, sessions):
         "date": d.isoformat(),
         "weekday": d.strftime("%A"),
         "cinema": "Cinema City Netanya",
-        "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "fetched_at": now_il().isoformat(timespec="seconds"),
         "sessions_count": len(out),
         "sessions": out,
     }
@@ -154,7 +153,6 @@ def main():
         prime = sum(s["prime"] for s in sessions)
         gone = sum(1 for s in sessions if s.get("status") == "removed")
         print(f"{d}: {len(sessions)} сеансов, из них Prime {prime}" + (f", отменено {gone}" if gone else ""))
-    print("Сайт:", build())
     review = [p.stem for p in MOVIES_DIR.glob("*.md") if read_md(p)[0].get("needs_review")]
     if review:
         print("Проверить руками:", ", ".join(sorted(review)))

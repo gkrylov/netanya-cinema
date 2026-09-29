@@ -1,190 +1,7 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Netanya Cinema</title>
-<style>
-:root {
-  --bg: #f6f5f2; --surface: #ffffff; --surface-2: #efede8; --line: #e2dfd8;
-  --ink: #1d1c1a; --ink-2: #57544e; --ink-3: #8b877f;
-  --accent: #9a5b00; --accent-bg: #fbeccb; --accent-bar: #e9b44c;
-  --bar: #b9c3cf; --bar-ink: #1d1c1a; --link: #1d4f91;
-  --radius: 10px;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #151514; --surface: #1f1f1d; --surface-2: #2a2a27; --line: #34332f;
-    --ink: #efede8; --ink-2: #b7b3aa; --ink-3: #85817a;
-    --accent: #f2c66d; --accent-bg: #3a2d12; --accent-bar: #c9952f;
-    --bar: #56606c; --bar-ink: #f4f2ee; --link: #8fb8ee;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink);
-  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-a { color: var(--link); text-decoration: none; }
-a:hover { text-decoration: underline; }
-button { font: inherit; color: inherit; }
-.wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
-header h1 { font-size: 22px; margin: 4px 0 2px; }
-header .sub { color: var(--ink-3); font-size: 13px; }
-
-.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 0; }
-.chip, .tab, select { border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
-  padding: 5px 12px; cursor: pointer; font-size: 14px; color: var(--ink); }
-select { border-radius: 8px; padding: 5px 8px; }
-.chip[aria-pressed="true"], .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.tabs { display: inline-flex; gap: 4px; background: var(--surface-2); padding: 3px; border-radius: 999px; }
-.tabs .tab { border: 0; background: transparent; }
-.tabs .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.15); font-weight: 600; }
-.filters label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
-.count { color: var(--ink-3); font-size: 13px; margin-left: auto; }
-
-.days { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-top: 16px; }
-.day { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 0; min-width: 0; }
-.day h2 { font-size: 16px; margin: 8px 16px 6px; }
-.day h2 small { color: var(--ink-3); font-weight: 400; }
-.session { display: grid; grid-template-columns: 64px 1fr auto; gap: 4px 12px; padding: 8px 16px;
-  border-top: 1px solid var(--line); align-items: baseline; }
-.session .time { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.session .time small { display: block; font-size: 11px; font-weight: 400; color: var(--ink-3); }
-.title-btn { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-weight: 600; font-size: 15px; }
-.title-btn:hover { text-decoration: underline; }
-.meta { color: var(--ink-3); font-size: 13px; }
-.lang { color: var(--ink-2); font-size: 13px; }
-.ratings { color: var(--ink-2); font-size: 13px; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
-.badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px;
-  border-radius: 4px; background: var(--accent-bg); color: var(--accent); vertical-align: 2px; margin-left: 6px; }
-.badge.plain { background: var(--surface-2); color: var(--ink-2); }
-.is-watched { opacity: .42; }
-.is-past { opacity: .5; }
-.is-removed .time, .is-removed .title-btn { text-decoration: line-through; }
-.empty { color: var(--ink-3); padding: 12px 16px; }
-
-/* Movies view */
-.movies { display: grid; gap: 12px; margin-top: 16px; }
-.movie { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px;
-  display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; }
-.movie .times { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 14px; }
-.movie .times b { color: var(--ink-3); font-weight: 500; margin-right: 4px; }
-.movie .times a { font-variant-numeric: tabular-nums; }
-.t { white-space: nowrap; margin-right: 10px; }
-.t .badge { margin-left: 3px; }
-.big-rating { font-size: 15px; text-align: right; white-space: nowrap; }
-
-/* Timeline view */
-.tl-day { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 8px 16px 12px; margin-top: 16px; overflow-x: auto; }
-.tl-day h2 { font-size: 16px; margin: 6px 0 10px; }
-.tl { position: relative; min-width: 760px; }
-.tl-axis { position: relative; height: 20px; margin-left: 180px; border-bottom: 1px solid var(--line); }
-.tl-axis span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--ink-3); }
-.tl-row { display: flex; align-items: center; height: 30px; border-bottom: 1px solid var(--line); }
-.tl-label { width: 180px; flex: none; padding-right: 10px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-label button { font-weight: 500; font-size: 13px; }
-.tl-track { position: relative; flex: 1; height: 100%; }
-.tl-grid { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
-.tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #d0443e; }
-.tl-bar { position: absolute; top: 5px; height: 20px; border-radius: 4px; background: var(--bar); color: var(--bar-ink);
-  font-size: 11px; line-height: 20px; padding: 0 6px; overflow: hidden; white-space: nowrap; cursor: pointer;
-  border: 0; box-shadow: 0 0 0 2px var(--surface); }
-.tl-bar.prime { background: var(--accent-bar); color: #1d1c1a; }
-.tl-bar:hover, .tl-bar:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-.tl-legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin: 8px 0 0 180px; }
-.tl-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 6px 9px;
-  border-radius: 6px; max-width: 280px; display: none; z-index: 10; line-height: 1.35; }
-
-/* Movie card */
-dialog { border: 0; border-radius: 14px; padding: 0; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
-  background: var(--surface); color: var(--ink); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
-dialog::backdrop { background: rgba(0,0,0,.45); }
-.card { padding: 20px 22px 22px; }
-.card h2 { margin: 0; font-size: 22px; padding-right: 36px; }
-.card .orig { color: var(--ink-2); margin-top: 2px; }
-.card .close { position: absolute; top: 12px; right: 12px; border: 0; background: var(--surface-2); width: 32px; height: 32px;
-  border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1; }
-.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 14px 0; font-size: 14px; }
-.facts dt { color: var(--ink-3); }
-.facts dd { margin: 0; }
-.scores { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
-.score { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; min-width: 100px; }
-.score b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
-.score span { font-size: 12px; color: var(--ink-3); }
-.note { background: var(--surface-2); border-left: 3px solid var(--ink-3); padding: 8px 12px; border-radius: 6px; margin: 12px 0; font-size: 14px; }
-.card h3 { font-size: 14px; margin: 16px 0 6px; color: var(--ink-2); }
-.card p { margin: 0 0 8px; font-size: 14px; }
-.card .sess { font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 4px; }
-
-@media (max-width: 600px) {
-  .session { grid-template-columns: 54px 1fr; }
-  .session .ratings { grid-column: 2; text-align: left; }
-  .count { margin-left: 0; width: 100%; }
-}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <header>
-    <h1>Cinema City Netanya</h1>
-    <div class="sub" id="sub"></div>
-  </header>
-
-  <div class="bar" id="dates"></div>
-
-  <div class="bar">
-    <div class="tabs" role="tablist" id="views">
-      <button class="tab" role="tab" data-view="sessions">Sessions</button>
-      <button class="tab" role="tab" data-view="movies">Movies</button>
-      <button class="tab" role="tab" data-view="timeline">Timeline</button>
-    </div>
-  </div>
-
-  <div class="bar filters">
-    <button class="chip" id="f-prime" aria-pressed="false">Prime only</button>
-    <button class="chip" id="f-hidewatched" aria-pressed="false">Hide watched</button>
-    <button class="chip" id="f-hidepast" aria-pressed="false">Hide past</button>
-    <label>Language
-      <select id="f-lang">
-        <option value="any">Any</option>
-        <option value="nodub">No dubbing</option>
-        <option value="english">English only (no subtitles)</option>
-        <option value="hebrew">Israeli films</option>
-        <option value="dubbed">Dubbed only</option>
-      </select>
-    </label>
-    <label>From
-      <select id="f-after">
-        <option value="0">any time</option>
-        <option value="12">12:00</option><option value="16">16:00</option><option value="18">18:00</option>
-        <option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option>
-      </select>
-    </label>
-    <label>IMDb ≥
-      <select id="f-imdb">
-        <option value="0">any</option><option value="6">6.0</option><option value="6.5">6.5</option>
-        <option value="7">7.0</option><option value="7.5">7.5</option><option value="8">8.0</option>
-      </select>
-    </label>
-    <label id="sort-wrap">Sort
-      <select id="f-sort">
-        <option value="imdb">IMDb</option><option value="rt">Rotten Tomatoes</option>
-        <option value="sessions">Sessions</option><option value="title">Title</option>
-      </select>
-    </label>
-    <span class="count" id="count"></span>
-  </div>
-
-  <main id="main"></main>
-</div>
-
-<dialog id="card"></dialog>
-<div id="tip" role="tooltip"></div>
-
-<script>
-const DATA = /*__DATA__*/null;
-const M = DATA.movies, W = DATA.watched;
+// Данные не встроены в страницу: грузятся из data/*.json при открытии (см. init внизу).
+const DATA = { days: [], movies: {}, watched: {}, generated: null };
+let M = {}, W = {};
+const TZ = "Asia/Jerusalem";
 
 // ---------- state ----------
 const DEFAULTS = { view: "sessions", prime: false, hidewatched: true, hidepast: false,
@@ -193,19 +10,21 @@ let state = { ...DEFAULTS };
 try { Object.assign(state, JSON.parse(localStorage.getItem("cinema-state") || "{}")); } catch (e) {}
 function save() { try { localStorage.setItem("cinema-state", JSON.stringify(state)); } catch (e) {} }
 
-const allDates = DATA.days.map(d => d.date);
+let allDates = [];
 function weekendDates() {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const iso = d => d.toLocaleDateString("sv-SE");
-  const wd = today.getDay(); // 0 Sun ... 5 Fri, 6 Sat
-  let fri = new Date(today);
-  if (wd === 6) fri.setDate(today.getDate() - 1);
-  else fri.setDate(today.getDate() + ((5 - wd + 7) % 7));
-  const sat = new Date(fri); sat.setDate(fri.getDate() + 1);
-  const picked = [iso(fri), iso(sat)].filter(d => allDates.includes(d) && d >= iso(today));
+  // «сегодня» по израильскому времени, где бы ни был браузер
+  const todayIso = new Date().toLocaleDateString("sv-SE", { timeZone: TZ });
+  const today = new Date(todayIso + "T12:00Z");
+  const iso = d => d.toISOString().slice(0, 10);
+  const wd = today.getUTCDay(); // 0 Sun ... 5 Fri, 6 Sat
+  const fri = new Date(today);
+  if (wd === 6) fri.setUTCDate(today.getUTCDate() - 1);
+  else fri.setUTCDate(today.getUTCDate() + ((5 - wd + 7) % 7));
+  const sat = new Date(fri); sat.setUTCDate(fri.getUTCDate() + 1);
+  const picked = [iso(fri), iso(sat)].filter(d => allDates.includes(d) && d >= todayIso);
   return picked.length ? picked : allDates.slice(-2);
 }
-let selected = weekendDates();
+let selected = [];
 
 // ---------- helpers ----------
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -359,7 +178,7 @@ function renderTimeline(days) {
     const hours = []; for (let t = start; t <= end; t += 60) hours.push(t);
     const axis = hours.map(t => `<span style="left:${pct(t)}">${String((t / 60) % 24).padStart(2, "0")}:00</span>`).join("");
     const grid = hours.map(t => `<div class="tl-grid" style="left:${pct(t)}"></div>`).join("");
-    const now = new Date(), dayStart = new Date(d.date + "T00:00");
+    const now = new Date(), dayStart = new Date(d.date + "T00:00" + (d.utc_offset || ""));
     const nowMin = (now - dayStart) / 60000;
     const nowLine = nowMin > start && nowMin < end ? `<div class="tl-now" style="left:${pct(nowMin)}" title="now"></div>` : "";
     // одна строка на фильм, в порядке первого сеанса
@@ -472,11 +291,33 @@ document.getElementById("main").addEventListener("mousemove", e => {
 });
 document.getElementById("main").addEventListener("mouseleave", () => tip.style.display = "none");
 
-const gen = new Date(DATA.generated);
-document.getElementById("sub").textContent =
-  `Schedule, ratings and notes · updated ${gen.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
-bindControls();
-render();
-</script>
-</body>
-</html>
+async function loadJSON(path) {
+  const r = await fetch(path, { cache: "no-cache" });
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.json();
+}
+
+async function init() {
+  try {
+    const [index, movies, watched] = await Promise.all(
+      ["data/index.json", "data/movies.json", "data/watched.json"].map(loadJSON));
+    DATA.generated = index.generated;
+    DATA.movies = M = movies;
+    DATA.watched = W = watched;
+    DATA.days = await Promise.all(index.dates.map(d => loadJSON(`data/days/${d}.json`)));
+  } catch (e) {
+    document.getElementById("main").innerHTML =
+      `<div class="empty">Could not load schedule data (${esc(e.message)}).` +
+      (location.protocol === "file:" ? " Open the page through a local server: python3 scripts/serve.py" : "") + "</div>";
+    return;
+  }
+  allDates = DATA.days.map(d => d.date);
+  selected = weekendDates();
+  const gen = new Date(DATA.generated);
+  document.getElementById("sub").textContent =
+    `Schedule, ratings and notes · updated ${gen.toLocaleString("en-GB", { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
+  bindControls();
+  render();
+}
+
+init();

@@ -1,5 +1,6 @@
 .env
-data/cache/
+.cache/
+public/
 __pycache__/
 .DS_Store
 .obsidian/workspace*.json

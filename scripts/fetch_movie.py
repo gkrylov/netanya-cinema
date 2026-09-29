@@ -8,9 +8,8 @@ import html
 import re
 import sys
 import time
-from datetime import date
 
-from common import (CC_BASE, MOVIES_DIR, http_get, load_env, parse_cc_name,
+from common import (CC_BASE, MOVIES_DIR, http_get, load_env, parse_cc_name, today_il,
                     read_md, slugify, write_md)
 
 TMDB = "https://api.themoviedb.org/3"
@@ -251,7 +250,7 @@ def ensure_movie(movie_id, cc_name, refresh=False):
         "tmdb_guess": tmdb_id if confidence == "fuzzy" else None,
         "imdb_id": details.get("imdb_id") if confidence == "exact" else None,
         "needs_review": confidence != "exact",
-        "sources_checked": date.today().isoformat(),
+        "sources_checked": today_il().isoformat(),
     }
     if confidence != "exact":
         # Неуверенное совпадение: TMDB-поля не подставляем, только подсказка

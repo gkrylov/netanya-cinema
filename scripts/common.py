@@ -1,14 +1,21 @@
 """Общие вещи: пути, HTTP, чтение/запись Markdown с YAML-шапкой, разбор названий."""
 
 import json
+import os
 import re
 import time
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
+# Данные живут в отдельном репозитории; по умолчанию это папка data/ внутри проекта
+DATA = Path(os.environ.get("MOVIES_DATA") or ROOT / "data").resolve()
+# Кэш (файл рейтингов IMDb) не данные и не код: вне обоих репозиториев
+CACHE = Path(os.environ.get("MOVIES_CACHE") or ROOT / ".cache").resolve()
+TZ = ZoneInfo("Asia/Jerusalem")
 MOVIES_DIR = DATA / "movies"
 DAYS_DIR = DATA / "days"
 WATCHED_FILE = DATA / "watched.md"
@@ -22,7 +29,17 @@ VENUE_PRIME = 4
 UA = "Mozilla/5.0 (personal cinema schedule tracker)"
 
 
+def now_il():
+    """Текущее время в Израиле, независимо от часового пояса машины (у GitHub Actions UTC)."""
+    return datetime.now(TZ)
+
+
+def today_il():
+    return now_il().date()
+
+
 def load_env():
+    """Настройки из .env; переменные окружения (секреты GitHub Actions) важнее."""
     env = {}
     path = ROOT / ".env"
     if path.exists():
@@ -31,6 +48,9 @@ def load_env():
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
                 env[k.strip()] = v.strip()
+    for k in ("TMDB_READ_TOKEN", "TMDB_API_KEY"):
+        if os.environ.get(k):
+            env[k] = os.environ[k]
     return env
 
 

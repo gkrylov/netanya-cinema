@@ -13,12 +13,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date
 
-from common import DATA, MOVIES_DIR, UA, http_get, read_md, write_md
+from common import CACHE, MOVIES_DIR, UA, http_get, read_md, today_il, write_md
 from fetch_movie import tmdb
 
-CACHE = DATA / "cache"
 IMDB_RATINGS_URL = "https://datasets.imdbws.com/title.ratings.tsv.gz"
 BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
@@ -133,7 +131,7 @@ def update_ratings(slug):
         for k in ("rt_url", "rt_critics", "rt_audience"):
             new[k] = meta.get(k)  # оставить прежние значения
 
-    new["ratings_checked"] = date.today().isoformat()
+    new["ratings_checked"] = today_il().isoformat()
 
     # Поля рейтингов вставляются перед служебными полями карточки
     out = {k: v for k, v in meta.items() if k not in FIELDS and k not in ("needs_review", "sources_checked")}

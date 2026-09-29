@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Netanya Cinema</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cinema City Netanya</h1>
+    <div class="sub" id="sub"></div>
+  </header>
+
+  <div class="bar" id="dates"></div>
+
+  <div class="bar">
+    <div class="tabs" role="tablist" id="views">
+      <button class="tab" role="tab" data-view="sessions">Sessions</button>
+      <button class="tab" role="tab" data-view="movies">Movies</button>
+      <button class="tab" role="tab" data-view="timeline">Timeline</button>
+    </div>
+  </div>
+
+  <div class="bar filters">
+    <button class="chip" id="f-prime" aria-pressed="false">Prime only</button>
+    <button class="chip" id="f-hidewatched" aria-pressed="false">Hide watched</button>
+    <button class="chip" id="f-hidepast" aria-pressed="false">Hide past</button>
+    <label>Language
+      <select id="f-lang">
+        <option value="any">Any</option>
+        <option value="nodub">No dubbing</option>
+        <option value="english">English only (no subtitles)</option>
+        <option value="hebrew">Israeli films</option>
+        <option value="dubbed">Dubbed only</option>
+      </select>
+    </label>
+    <label>From
+      <select id="f-after">
+        <option value="0">any time</option>
+        <option value="12">12:00</option><option value="16">16:00</option><option value="18">18:00</option>
+        <option value="19">19:00</option><option value="20">20:00</option><option value="21">21:00</option>
+      </select>
+    </label>
+    <label>IMDb ≥
+      <select id="f-imdb">
+        <option value="0">any</option><option value="6">6.0</option><option value="6.5">6.5</option>
+        <option value="7">7.0</option><option value="7.5">7.5</option><option value="8">8.0</option>
+      </select>
+    </label>
+    <label id="sort-wrap">Sort
+      <select id="f-sort">
+        <option value="imdb">IMDb</option><option value="rt">Rotten Tomatoes</option>
+        <option value="sessions">Sessions</option><option value="title">Title</option>
+      </select>
+    </label>
+    <span class="count" id="count"></span>
+  </div>
+
+  <main id="main"></main>
+</div>
+
+<dialog id="card"></dialog>
+<div id="tip" role="tooltip"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
