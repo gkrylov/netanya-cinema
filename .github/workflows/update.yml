@@ -1,0 +1,95 @@
+# Сбор расписания и публикация сайта.
+#
+# По расписанию и по кнопке «Run workflow»: собрать данные, закоммитить их
+# в репозиторий данных, собрать страницу и опубликовать в GitHub Pages.
+# При изменении кода (push в main): только пересобрать и опубликовать.
+
+name: Update schedule and site
+
+on:
+  schedule:
+    # Время в UTC. Израиль летом UTC+3, зимой UTC+2.
+    - cron: "0 4 * * *"    # каждый день 7:00 летом (6:00 зимой)
+    - cron: "0 17 * * 4"   # четверг 20:00 летом (19:00 зимой): расписание на выходные
+  workflow_dispatch:
+    inputs:
+      collect:
+        description: "Collect fresh data (off = only republish the site)"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      COLLECT: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.collect) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout data
+        uses: actions/checkout@v4
+        with:
+          repository: gkrylov/netanya-cinema-data
+          path: data
+          ssh-key: ${{ secrets.DATA_DEPLOY_KEY }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Restore IMDb ratings cache
+        if: env.COLLECT == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: imdb-${{ github.run_id }}
+          restore-keys: imdb-
+
+      - name: Collect schedule, movies and ratings
+        if: env.COLLECT == 'true'
+        env:
+          TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
+        run: python3 scripts/fetch_schedule.py
+
+      - name: Commit data
+        if: env.COLLECT == 'true'
+        working-directory: data
+        run: |
+          git config user.name "netanya-cinema bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No data changes"
+          else
+            git commit -m "Schedule update $(TZ=Asia/Jerusalem date '+%Y-%m-%d %H:%M')"
+            git push
+          fi
+
+      - name: Build site
+        run: python3 scripts/build_public.py
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
