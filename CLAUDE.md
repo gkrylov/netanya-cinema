@@ -27,6 +27,17 @@
 - Страница (`web/`) только код, данные грузит сама из `data/*.json`.
   JSON и `public/` производные, в git не хранятся.
 
+## Сайт и робот
+
+- Сайт: https://gkrylov.github.io/netanya-cinema/ . Код: `gkrylov/netanya-cinema`
+  (публичный, ничего личного туда не класть). Данные: `gkrylov/netanya-cinema-data`
+  (закрытый). Робот (`.github/workflows/update.yml`) сам собирает и коммитит данные.
+- **Добавить заметку** о просмотренном: `git -C data pull`, дописать
+  `data/watched.md`, `git -C data commit` и `push`, затем опубликовать без сбора:
+  `gh workflow run update.yml -R gkrylov/netanya-cinema -f collect=false`.
+- Перед любой правкой данных сначала `git -C data pull`: робот коммитит туда сам.
+- Изменения кода: коммит и `git push` в репозитории кода, сайт пересоберётся сам.
+
 ## Как запускать
 
 ```

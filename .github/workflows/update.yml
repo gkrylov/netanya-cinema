@@ -24,6 +24,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write   # продлевать расписание (см. шаг Keep schedule alive)
 
 concurrency:
   group: update
@@ -74,11 +75,20 @@ jobs:
             echo "No data changes"
           else
             git commit -m "Schedule update $(TZ=Asia/Jerusalem date '+%Y-%m-%d %H:%M')"
+            git pull --rebase   # заметки могли прийти, пока шёл сбор
             git push
           fi
 
       - name: Build site
         run: python3 scripts/build_public.py
+
+      # GitHub отключает запуски по расписанию после 60 дней без активности
+      # в репозитории. Коммиты робота идут в репозиторий данных, не сюда,
+      # поэтому при каждом запуске явно включаем workflow заново.
+      - name: Keep schedule alive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable"
 
       - uses: actions/upload-pages-artifact@v3
         with:
