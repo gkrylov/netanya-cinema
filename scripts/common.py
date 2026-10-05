@@ -19,6 +19,8 @@ TZ = ZoneInfo("Asia/Jerusalem")
 MOVIES_DIR = DATA / "movies"
 DAYS_DIR = DATA / "days"
 WATCHED_FILE = DATA / "watched.md"
+# Какие даты Cinema City уже выложил и когда был последний сбор
+AVAILABILITY_FILE = DATA / "availability.md"
 
 CC_BASE = "https://www.cinema-city.co.il"
 NETANYA_ID = 5            # ID кинотеатра на сайте (обычные залы)

@@ -54,6 +54,8 @@ select { border-radius: 8px; padding: 5px 8px; }
 .is-past { opacity: .5; }
 .is-removed .time, .is-removed .title-btn { text-decoration: line-through; }
 .empty { color: var(--ink-3); padding: 12px 16px; }
+.notice { margin-top: 16px; padding: 12px 16px; border-radius: var(--radius); background: var(--accent-bg);
+  color: var(--ink); border: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
 
 /* Movies view */
 .movies { display: grid; gap: 12px; margin-top: 16px; }

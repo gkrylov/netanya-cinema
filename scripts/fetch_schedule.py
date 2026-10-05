@@ -8,9 +8,9 @@
 import sys
 from datetime import date, datetime, timedelta
 
-from common import (CC_BASE, DAYS_DIR, MOVIES_DIR, NETANYA_TIX_ID, VENUE_ALL, now_il, today_il,
-                    VENUE_PRIME, http_get, parse_cc_name, read_md, watched_slugs,
-                    write_md)
+from common import (AVAILABILITY_FILE, CC_BASE, DAYS_DIR, MOVIES_DIR, NETANYA_ID,
+                    NETANYA_TIX_ID, VENUE_ALL, VENUE_PRIME, http_get, now_il,
+                    parse_cc_name, read_md, today_il, watched_slugs, write_md)
 from fetch_movie import ensure_movie
 from fetch_ratings import ratings_line, update_ratings
 
@@ -137,9 +137,54 @@ def write_day(d, sessions):
     write_md(DAYS_DIR / f"{d.isoformat()}.md", meta, body)
 
 
+def published_dates():
+    """Даты, на которые Cinema City Netanya уже выложил расписание."""
+    raw = http_get(f"{CC_BASE}/tickets/GetDatesByTheater", {"theaterId": NETANYA_ID})
+    return sorted(datetime.strptime(x.split()[-1], "%d/%m/%Y").date() for x in raw)
+
+
+def regular_until(published):
+    """Последний день сплошного расписания от первой даты.
+
+    Дальше идут одиночные даты (предпродажа отдельных показов), они не считаются.
+    """
+    if not published:
+        return None
+    last = published[0]
+    for d in published[1:]:
+        if d - last > timedelta(days=1):
+            break
+        last = d
+    return last
+
+
+def write_availability(published):
+    until = regular_until(published)
+    extra = [d.isoformat() for d in published if until and d > until]
+    meta = {
+        "cinema": "Cinema City Netanya",
+        "fetched_at": now_il().isoformat(timespec="seconds"),
+        "published_until": until.isoformat() if until else None,
+        "published_dates": [d.isoformat() for d in published],
+    }
+    body = "# Published schedule\n\n" + (
+        f"Cinema City Netanya has published the regular schedule up to **{until.strftime('%A, %d %B %Y')}**."
+        if until else "Cinema City Netanya has no published dates.")
+    if extra:
+        body += "\n\nSingle later dates (pre-sales): " + ", ".join(extra) + "."
+    write_md(AVAILABILITY_FILE, meta, body)
+    return until
+
+
 def main():
     args = sys.argv[1:]
-    dates = [date.fromisoformat(a) for a in args] if args else weekend_dates()
+    wanted = [date.fromisoformat(a) for a in args] if args else weekend_dates()
+    published = published_dates()
+    until = write_availability(published)
+    dates = [d for d in wanted if d in published]
+    for d in wanted:
+        if d not in published:
+            print(f"{d}: Cinema City ещё не выложил расписание (сплошное расписание до {until})")
     movies = http_get(f"{CC_BASE}/tickets/Movies")
     movie_ids = {m["ExportCode"]: m["MovieId"] for m in movies}
     movie_ids.update({m["Name"]: m["MovieId"] for m in movies})

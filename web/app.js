@@ -21,8 +21,8 @@ function weekendDates() {
   if (wd === 6) fri.setUTCDate(today.getUTCDate() - 1);
   else fri.setUTCDate(today.getUTCDate() + ((5 - wd + 7) % 7));
   const sat = new Date(fri); sat.setUTCDate(fri.getUTCDate() + 1);
-  const picked = [iso(fri), iso(sat)].filter(d => allDates.includes(d) && d >= todayIso);
-  return picked.length ? picked : allDates.slice(-2);
+  // Ближайшие выходные, даже если расписания на них ещё нет: тогда render() объяснит, почему пусто
+  return [iso(fri), iso(sat)].filter(d => d >= todayIso);
 }
 let selected = [];
 
@@ -261,14 +261,35 @@ function openCard(slug) {
 }
 
 // ---------- render ----------
+const fmtDay = iso => new Date(iso + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const fmtWhen = ts => new Date(ts).toLocaleString("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+// Выбранные даты без расписания: объяснить, до какого дня Cinema City его выложил
+function missingNotice() {
+  const missing = selected.filter(d => !allDates.includes(d));
+  if (!missing.length) return "";
+  const A = DATA.availability;
+  const pub = new Set(A.published_dates);
+  const lines = [`No schedule yet for <b>${missing.map(fmtDay).join(" – ")}</b>.`];
+  if (missing.some(d => pub.has(d)))
+    lines.push("Cinema City has already published it; it will appear after the next update.");
+  else if (A.published_until)
+    lines.push(`Cinema City has published the schedule only up to <b>${esc(dayLabel(A.published_until))}</b>.`);
+  const later = A.published_dates.filter(d => A.published_until && d > A.published_until);
+  if (later.length) lines.push(`Later single dates (pre-sales): ${later.map(fmtDay).join(", ")}.`);
+  if (A.collected_at) lines.push(`Last check: ${esc(fmtWhen(A.collected_at))}.`);
+  return `<div class="notice">${lines.join(" ")}</div>`;
+}
+
 function render() {
   renderDates();
   document.querySelectorAll("#views .tab").forEach(b => b.setAttribute("aria-selected", b.dataset.view === state.view));
   for (const k of ["prime", "hidewatched", "hidepast"]) document.getElementById("f-" + k).setAttribute("aria-pressed", state[k]);
   document.getElementById("sort-wrap").style.display = state.view === "movies" ? "" : "none";
   const days = selectedDays();
-  const r = state.view === "movies" ? renderMovies(days) : state.view === "timeline" ? renderTimeline(days) : renderSessions(days);
-  document.getElementById("main").innerHTML = r.html;
+  const r = !days.length ? { html: "", shown: 0 }   // нет данных: остаётся только объяснение
+    : state.view === "movies" ? renderMovies(days) : state.view === "timeline" ? renderTimeline(days) : renderSessions(days);
+  document.getElementById("main").innerHTML = missingNotice() + r.html;
   document.getElementById("count").textContent = `${r.shown} ${r.unit || "sessions"}`;
 }
 
@@ -302,6 +323,8 @@ async function init() {
     const [index, movies, watched] = await Promise.all(
       ["data/index.json", "data/movies.json", "data/watched.json"].map(loadJSON));
     DATA.generated = index.generated;
+    DATA.availability = { collected_at: index.collected_at, published_until: index.published_until,
+                          published_dates: index.published_dates || [] };
     DATA.movies = M = movies;
     DATA.watched = W = watched;
     DATA.days = await Promise.all(index.dates.map(d => loadJSON(`data/days/${d}.json`)));
@@ -313,9 +336,8 @@ async function init() {
   }
   allDates = DATA.days.map(d => d.date);
   selected = weekendDates();
-  const gen = new Date(DATA.generated);
   document.getElementById("sub").textContent =
-    `Schedule, ratings and notes · updated ${gen.toLocaleString("en-GB", { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
+    `Schedule, ratings and notes · checked ${fmtWhen(DATA.availability.collected_at || DATA.generated)}`;
   bindControls();
   render();
 }

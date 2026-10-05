@@ -1,16 +1,22 @@
 # Сбор расписания и публикация сайта.
 #
-# По расписанию и по кнопке «Run workflow»: собрать данные, закоммитить их
-# в репозиторий данных, собрать страницу и опубликовать в GitHub Pages.
+# Сроки сбора: каждый день в 7:00 и в четверг в 20:00 по израильскому времени
+# (круглый год, переход на зимнее время их не сдвигает).
+#
+# GitHub запускает workflow по расписанию с задержкой (на начале часа бывало
+# по 5–7 часов) и не гарантирует время. Поэтому робот просыпается каждые
+# полчаса в «некруглые» минуты, а scripts/due.py решает, наступил ли срок:
+# если с последнего срока сбора ещё не было, собирает и публикует, иначе
+# сразу завершается.
+#
+# По кнопке «Run workflow»: собрать (или только опубликовать, collect=false).
 # При изменении кода (push в main): только пересобрать и опубликовать.
 
 name: Update schedule and site
 
 on:
   schedule:
-    # Время в UTC. Израиль летом UTC+3, зимой UTC+2.
-    - cron: "0 4 * * *"    # каждый день 7:00 летом (6:00 зимой)
-    - cron: "0 17 * * 4"   # четверг 20:00 летом (19:00 зимой): расписание на выходные
+    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       collect:
@@ -33,8 +39,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      COLLECT: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.collect) }}
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,12 +52,33 @@ jobs:
           path: data
           ssh-key: ${{ secrets.DATA_DEPLOY_KEY }}
 
+      - name: Decide what to do
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          COLLECT_INPUT: ${{ inputs.collect }}
+        run: |
+          case "$EVENT" in
+            schedule)
+              # системный python3 раннера: сборщики работают на стандартной библиотеке
+              collect=$(GITHUB_OUTPUT= python3 scripts/due.py | tee /dev/stderr | sed -n 's/^collect=//p')
+              publish=$collect ;;
+            workflow_dispatch)
+              collect=$COLLECT_INPUT; publish=true ;;
+            *)
+              collect=false; publish=true ;;
+          esac
+          echo "collect=$collect" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "collect=$collect publish=$publish"
+
       - uses: actions/setup-python@v5
+        if: steps.plan.outputs.publish == 'true'
         with:
           python-version: "3.13"
 
       - name: Restore IMDb ratings cache
-        if: env.COLLECT == 'true'
+        if: steps.plan.outputs.collect == 'true'
         uses: actions/cache@v4
         with:
           path: .cache
@@ -59,13 +86,13 @@ jobs:
           restore-keys: imdb-
 
       - name: Collect schedule, movies and ratings
-        if: env.COLLECT == 'true'
+        if: steps.plan.outputs.collect == 'true'
         env:
           TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
         run: python3 scripts/fetch_schedule.py
 
       - name: Commit data
-        if: env.COLLECT == 'true'
+        if: steps.plan.outputs.collect == 'true'
         working-directory: data
         run: |
           git config user.name "netanya-cinema bot"
@@ -80,22 +107,26 @@ jobs:
           fi
 
       - name: Build site
+        if: steps.plan.outputs.publish == 'true'
         run: python3 scripts/build_public.py
 
       # GitHub отключает запуски по расписанию после 60 дней без активности
       # в репозитории. Коммиты робота идут в репозиторий данных, не сюда,
-      # поэтому при каждом запуске явно включаем workflow заново.
+      # поэтому при каждой публикации явно включаем workflow заново.
       - name: Keep schedule alive
+        if: steps.plan.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable"
 
       - uses: actions/upload-pages-artifact@v3
+        if: steps.plan.outputs.publish == 'true'
         with:
           path: public
 
   deploy:
     needs: build
+    if: needs.build.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

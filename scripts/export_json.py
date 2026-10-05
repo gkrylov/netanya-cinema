@@ -12,7 +12,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from common import DAYS_DIR, MOVIES_DIR, ROOT, TZ, WATCHED_FILE, now_il, read_md
+from common import AVAILABILITY_FILE, DAYS_DIR, MOVIES_DIR, ROOT, TZ, WATCHED_FILE, now_il, read_md
 
 
 def movie_overview(body):
@@ -76,7 +76,9 @@ def dump(path, obj):
 
 def export(out):
     out = Path(out)
-    days = [load_day(p) for p in sorted(DAYS_DIR.glob("*.md"))]
+    # пустые дни (Cinema City ещё ничего не выложил) не показываем как расписание
+    days = [d for d in (load_day(p) for p in sorted(DAYS_DIR.glob("*.md"))) if d["sessions"]]
+    avail = read_md(AVAILABILITY_FILE)[0] if AVAILABILITY_FILE.exists() else {}
     for day in days:
         dump(out / "days" / f"{day['date']}.json", day)
     dump(out / "movies.json", load_movies())
@@ -84,6 +86,9 @@ def export(out):
     dump(out / "index.json", {
         "generated": now_il().isoformat(timespec="seconds"),
         "dates": [d["date"] for d in days],
+        "collected_at": avail.get("fetched_at"),
+        "published_until": avail.get("published_until"),
+        "published_dates": avail.get("published_dates") or [],
     })
     return out
 
