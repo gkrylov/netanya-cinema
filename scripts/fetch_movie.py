@@ -1,4 +1,4 @@
-"""Карточка фильма: страница Cinema City + TMDB → data/movies/<slug>.md
+"""Карточка фильма: Cinema City (коллекция SyncFeatures) + TMDB → data/movies/<slug>.md
 
 Использование: python3 scripts/fetch_movie.py <MovieId> [<MovieId> ...] [--refresh]
 Обычно вызывается из fetch_schedule.py.
@@ -7,9 +7,9 @@
 import html
 import re
 import sys
-import time
 
-from common import (CC_BASE, MOVIES_DIR, http_get, load_env, parse_cc_name, today_il,
+import cinema_city
+from common import (MOVIES_DIR, http_get, load_env, parse_cc_name, today_il,
                     read_md, slugify, write_md)
 
 TMDB = "https://api.themoviedb.org/3"
@@ -44,31 +44,20 @@ def language_name(iso):
 
 # --- Cinema City -----------------------------------------------------------
 
-def _field(page, label):
-    m = re.search(r"<span>\s*" + label + r"\s*</span>(.*?)</p>", page, re.S)
-    return html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).replace("\xa0", " ").strip() if m else None
-
-
 def fetch_cc_movie(movie_id):
-    page = http_get(f"{CC_BASE}/movie/{movie_id}", as_json=False)
-    m = re.search(r'<h1 class="[^"]*title">(.*?)</h1>', page, re.S)
-    title = html.unescape(m.group(1)).strip() if m else ""
-    he, _, en = title.partition("/")
-    m = re.search(r'class="col-12 col-sm-8 tak">\s*<div>(.*?)</div>', page, re.S)
-    synopsis = html.unescape(re.sub(r"<[^>]+>", " ", m.group(1))).split() if m else []
-    premiere = _field(page, "תאריך בכורה")
-    if premiere and re.fullmatch(r"\d\d/\d\d/\d{4}", premiere):
-        d, mo, y = premiere.split("/")
-        premiere = f"{y}-{mo}-{d}"
-    runtime = _field(page, "אורך בדקות")
+    """Фильм с нового сайта Cinema City (коллекция SyncFeatures)."""
+    f = cinema_city.feature(movie_id) or {}
+    synopsis = f.get("synopsis_he")
+    if synopsis:
+        synopsis = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", synopsis))).strip()
     return {
-        "title_he": he.strip(),
-        "title_en": en.strip() or None,
-        "genre_he": _field(page, "סיווג"),
-        "runtime_min": int(runtime) if runtime and runtime.isdigit() and int(runtime) > 0 else None,
-        "premiere_il": premiere,
-        "age_he": _field(page, "הגבלת צפיה"),
-        "synopsis_he": " ".join(synopsis) or None,
+        "title_he": f.get("title_he") or "",
+        "title_en": f.get("title_en"),
+        "genre_he": f.get("genre_he"),
+        "runtime_min": f.get("runtime_min"),
+        "premiere_il": f.get("premiere_il"),
+        "age_he": f.get("age_he"),
+        "synopsis_he": synopsis or None,
     }
 
 
@@ -199,7 +188,6 @@ def ensure_movie(movie_id, cc_name, refresh=False):
             return _add_version(slug, movie_id, dubbed)
 
     cc = fetch_cc_movie(movie_id)
-    time.sleep(0.3)
     title_he = parse_cc_name(cc["title_he"] or cc_name)["base"] or parsed["base"]
     title_en = cc["title_en"]
     if title_en and re.search(r"[\u0400-\u04FF]", title_en):
@@ -268,7 +256,6 @@ def ensure_movie(movie_id, cc_name, refresh=False):
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     refresh = "--refresh" in sys.argv
-    movies = {m["MovieId"]: m["Name"] for m in http_get(f"{CC_BASE}/tickets/Movies")}
     for a in args:
         mid = int(a)
-        print(ensure_movie(mid, movies.get(mid, ""), refresh=refresh))
+        print(ensure_movie(mid, (cinema_city.feature(mid) or {}).get("title_he") or "", refresh=refresh))

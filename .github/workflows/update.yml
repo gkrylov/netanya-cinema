@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       publish: ${{ steps.plan.outputs.publish }}
+      collect_failed: ${{ steps.collect.outcome == 'failure' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -85,8 +86,13 @@ jobs:
           key: imdb-${{ github.run_id }}
           restore-keys: imdb-
 
+      # При ошибке не останавливаемся: сборщик уже записал её в data/status.md,
+      # дальше коммит, публикация сайта с предупреждением, и только в конце
+      # запуск помечается упавшим (шаг Report collection failure).
       - name: Collect schedule, movies and ratings
+        id: collect
         if: steps.plan.outputs.collect == 'true'
+        continue-on-error: true
         env:
           TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
         run: python3 scripts/fetch_schedule.py
@@ -134,3 +140,9 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Report collection failure
+        if: needs.build.outputs.collect_failed == 'true'
+        run: |
+          echo "::error::Collection failed; the site was published with a warning. See the 'Collect schedule' step of the build job."
+          exit 1

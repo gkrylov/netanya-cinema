@@ -21,12 +21,9 @@ DAYS_DIR = DATA / "days"
 WATCHED_FILE = DATA / "watched.md"
 # Какие даты Cinema City уже выложил и когда был последний сбор
 AVAILABILITY_FILE = DATA / "availability.md"
+# Итог последней попытки сбора (удалась ли, текст ошибки): его показывает страница
+STATUS_FILE = DATA / "status.md"
 
-CC_BASE = "https://www.cinema-city.co.il"
-NETANYA_ID = 5            # ID кинотеатра на сайте (обычные залы)
-NETANYA_TIX_ID = 1176     # TixTheatreId, общий для обычных и Prime
-VENUE_ALL = 1             # «רגיל»: на деле отдаёт все сеансы, включая Prime
-VENUE_PRIME = 4
 
 UA = "Mozilla/5.0 (personal cinema schedule tracker)"
 

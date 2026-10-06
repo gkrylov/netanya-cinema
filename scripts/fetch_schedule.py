@@ -6,10 +6,13 @@
 """
 
 import sys
+import traceback
 from datetime import date, datetime, timedelta
 
-from common import (AVAILABILITY_FILE, CC_BASE, DAYS_DIR, MOVIES_DIR, NETANYA_ID,
-                    NETANYA_TIX_ID, VENUE_ALL, VENUE_PRIME, http_get, now_il,
+import cinema_city
+import os
+
+from common import (AVAILABILITY_FILE, DAYS_DIR, MOVIES_DIR, STATUS_FILE, now_il,
                     parse_cc_name, read_md, today_il, watched_slugs, write_md)
 from fetch_movie import ensure_movie
 from fetch_ratings import ratings_line, update_ratings
@@ -26,34 +29,29 @@ def weekend_dates(today=None):
     return [fri, fri + timedelta(days=1)]
 
 
-def fetch_events(d, venue):
-    return http_get(f"{CC_BASE}/tickets/Events", {
-        "TheatreId": NETANYA_TIX_ID, "VenueTypeId": venue, "MovieId": 0,
-        "Date": d.strftime("%d/%m/%Y"),
-    })
-
-
-def collect_day(d, movie_ids):
-    prime_ids = {x["EventId"] for m in fetch_events(d, VENUE_PRIME) for x in m["Dates"]}
+def collect_day(d, presentations):
+    """Сеансы одного дня из сеансов кинотеатра (день = businessDate сайта: ночные идут к предыдущему)."""
     sessions = []
-    for m in fetch_events(d, VENUE_ALL):
-        parsed = parse_cc_name(m["Name"])
-        mid = movie_ids.get(m["ExportCode"]) or movie_ids.get(m["Name"])
-        slug = ensure_movie(mid, m["Name"]) if mid else None
-        for x in m["Dates"]:
-            dt = datetime.strptime(x["Date"], "%d/%m/%Y %H:%M")
-            sessions.append({
-                "time": x["Hour"],
-                "after_midnight": dt.date() > d,
-                "movie": slug,
-                "cc_name": m["Name"],
-                "prime": x["EventId"] in prime_ids,
-                "screen_language": parsed["screen_language"],
-                "format": parsed["format"],
-                "event_id": x["EventId"],
-                "ticket_url": f"{CC_BASE}/order/?eventID={x['EventId']}&theaterId={x['TheaterId']}",
-                "_dt": dt,
-            })
+    for p in presentations:
+        if p["business_date"] != d:
+            continue
+        parsed = parse_cc_name(p["cc_name"])
+        slug = ensure_movie(p["feature_id"], p["cc_name"])
+        sessions.append({
+            "time": p["start"].strftime("%H:%M"),
+            "after_midnight": p["start"].date() > d,
+            "movie": slug,
+            "cc_name": p["cc_name"],
+            "prime": p["prime"],
+            # язык дубляжа сайт отдаёт отдельным полем; приписка в названии (-אנגלית) как запасной источник
+            "screen_language": p["screen_language"] or parsed["screen_language"],
+            "format": parsed["format"],
+            "hall": p["hall"],
+            "soldout": p["soldout"] or None,
+            "event_id": p["event_id"],
+            "ticket_url": p["ticket_url"],
+            "_dt": p["start"],
+        })
     sessions.sort(key=lambda s: (s["_dt"], s["cc_name"]))
     return sessions
 
@@ -137,10 +135,9 @@ def write_day(d, sessions):
     write_md(DAYS_DIR / f"{d.isoformat()}.md", meta, body)
 
 
-def published_dates():
-    """Даты, на которые Cinema City Netanya уже выложил расписание."""
-    raw = http_get(f"{CC_BASE}/tickets/GetDatesByTheater", {"theaterId": NETANYA_ID})
-    return sorted(datetime.strptime(x.split()[-1], "%d/%m/%Y").date() for x in raw)
+def published_dates(presentations):
+    """Даты, на которые Cinema City Netanya уже выложил сеансы."""
+    return sorted({p["business_date"] for p in presentations})
 
 
 def regular_until(published):
@@ -176,19 +173,17 @@ def write_availability(published):
     return until
 
 
-def main():
+def collect():
     args = sys.argv[1:]
     wanted = [date.fromisoformat(a) for a in args] if args else weekend_dates()
-    published = published_dates()
+    presentations = cinema_city.presentations()
+    published = published_dates(presentations)
     until = write_availability(published)
     dates = [d for d in wanted if d in published]
     for d in wanted:
         if d not in published:
             print(f"{d}: Cinema City ещё не выложил расписание (сплошное расписание до {until})")
-    movies = http_get(f"{CC_BASE}/tickets/Movies")
-    movie_ids = {m["ExportCode"]: m["MovieId"] for m in movies}
-    movie_ids.update({m["Name"]: m["MovieId"] for m in movies})
-    days = [(d, merge_previous(d, collect_day(d, movie_ids))) for d in dates]
+    days = [(d, merge_previous(d, collect_day(d, presentations))) for d in dates]
     slugs = sorted({s["movie"] for _, ss in days for s in ss if s["movie"]})
     print(f"Рейтинги: {len(slugs)} фильмов...")
     for slug in slugs:
@@ -201,6 +196,45 @@ def main():
     review = [p.stem for p in MOVIES_DIR.glob("*.md") if read_md(p)[0].get("needs_review")]
     if review:
         print("Проверить руками:", ", ".join(sorted(review)))
+
+
+def run_url():
+    """Ссылка на запуск робота GitHub Actions (если сбор идёт там)."""
+    if os.environ.get("GITHUB_RUN_ID"):
+        return (f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
+                f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+    return None
+
+
+def write_status(ok, error=None):
+    """Записать итог попытки сбора в data/status.md: его показывает страница."""
+    old = read_md(STATUS_FILE)[0] if STATUS_FILE.exists() else {}
+    now = now_il().isoformat(timespec="seconds")
+    meta = {
+        "last_attempt_at": now,
+        "ok": ok,
+        "last_success_at": now if ok else old.get("last_success_at"),
+        # когда начались ошибки подряд (сбрасывается при успехе)
+        "failing_since": None if ok else (old.get("failing_since") if old.get("ok") is False else now),
+        "error": error,
+        "run_url": run_url(),
+    }
+    meta = {k: v for k, v in meta.items() if v is not None or k in ("ok",)}
+    body = "# Collector status\n\n" + (
+        f"Last update succeeded at {now}." if ok else
+        f"Last update FAILED at {now}:\n\n```\n{error}\n```")
+    write_md(STATUS_FILE, meta, body)
+
+
+def main():
+    try:
+        collect()
+    except Exception as e:
+        # Короткая причина для страницы; полный traceback остаётся в логе запуска
+        last = traceback.extract_tb(e.__traceback__)[-1]
+        write_status(False, f"{type(e).__name__}: {e} (in {os.path.basename(last.filename)}:{last.lineno})")
+        raise
+    write_status(True)
 
 
 if __name__ == "__main__":

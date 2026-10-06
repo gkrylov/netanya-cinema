@@ -252,7 +252,7 @@ function openCard(slug) {
     <p>${[m.tmdb_id && `<a href="https://www.themoviedb.org/movie/${m.tmdb_id}" target="_blank" rel="noopener">TMDB</a>`,
           m.imdb_id && `<a href="https://www.imdb.com/title/${m.imdb_id}/" target="_blank" rel="noopener">IMDb</a>`,
           m.rt_url && `<a href="${esc(m.rt_url)}" target="_blank" rel="noopener">Rotten Tomatoes</a>`,
-          (m.cc_movie_id || [])[0] && `<a href="https://www.cinema-city.co.il/movie/${m.cc_movie_id[0]}" target="_blank" rel="noopener">Cinema City</a>`]
+          (m.cc_movie_id || []).length && `<a href="https://www.cinema-city.co.il/movie/${m.cc_movie_id[m.cc_movie_id.length - 1]}" target="_blank" rel="noopener">Cinema City</a>`]
           .filter(Boolean).join(" · ")}</p>
   </div>`;
   dlg.querySelector(".close").onclick = () => dlg.close();
@@ -263,6 +263,26 @@ function openCard(slug) {
 // ---------- render ----------
 const fmtDay = iso => new Date(iso + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const fmtWhen = ts => new Date(ts).toLocaleString("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+// Сбор упал или давно не запускался: сказать об этом прямо, а не показывать старое молча
+const STALE_HOURS = 30;
+function statusNotice() {
+  const st = DATA.status || {};
+  const lines = [];
+  if (st.ok === false) {
+    lines.push(`<b>Schedule update failed</b> (last attempt ${esc(fmtWhen(st.last_attempt_at))}` +
+      (st.failing_since && st.failing_since !== st.last_attempt_at ? `, failing since ${esc(fmtWhen(st.failing_since))}` : "") + ").");
+    if (st.error) lines.push(`Error: <code>${esc(st.error)}</code>.`);
+  }
+  const last = st.last_success_at || DATA.availability.collected_at;
+  const ageH = last ? (Date.now() - new Date(last)) / 36e5 : Infinity;
+  if (st.ok !== false && ageH > STALE_HOURS)
+    lines.push(`<b>The schedule has not been updated for ${Math.floor(ageH)} hours</b>; the updater may not be running.`);
+  if (!lines.length) return "";
+  lines.push(last ? `Showing data from ${esc(fmtWhen(last))}.` : "No successful update yet.");
+  if (st.run_url) lines.push(`<a href="${esc(st.run_url)}" target="_blank" rel="noopener">Updater log</a>`);
+  return `<div class="notice error">${lines.join(" ")}</div>`;
+}
 
 // Выбранные даты без расписания: объяснить, до какого дня Cinema City его выложил
 function missingNotice() {
@@ -289,7 +309,7 @@ function render() {
   const days = selectedDays();
   const r = !days.length ? { html: "", shown: 0 }   // нет данных: остаётся только объяснение
     : state.view === "movies" ? renderMovies(days) : state.view === "timeline" ? renderTimeline(days) : renderSessions(days);
-  document.getElementById("main").innerHTML = missingNotice() + r.html;
+  document.getElementById("main").innerHTML = statusNotice() + missingNotice() + r.html;
   document.getElementById("count").textContent = `${r.shown} ${r.unit || "sessions"}`;
 }
 
@@ -325,6 +345,7 @@ async function init() {
     DATA.generated = index.generated;
     DATA.availability = { collected_at: index.collected_at, published_until: index.published_until,
                           published_dates: index.published_dates || [] };
+    DATA.status = index.status || {};
     DATA.movies = M = movies;
     DATA.watched = W = watched;
     DATA.days = await Promise.all(index.dates.map(d => loadJSON(`data/days/${d}.json`)));
@@ -337,7 +358,7 @@ async function init() {
   allDates = DATA.days.map(d => d.date);
   selected = weekendDates();
   document.getElementById("sub").textContent =
-    `Schedule, ratings and notes · checked ${fmtWhen(DATA.availability.collected_at || DATA.generated)}`;
+    `Schedule, ratings and notes · updated ${fmtWhen(DATA.status.last_success_at || DATA.availability.collected_at || DATA.generated)}`;
   bindControls();
   render();
 }

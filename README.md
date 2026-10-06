@@ -43,24 +43,29 @@
 
 ## Источник данных
 
-У сайта cinema-city.co.il есть внутренние JSON-эндпоинты, которыми пользуется
-его собственный интерфейс. Проверено 25.09.2026:
+С 06.10.2026 сайт cinema-city.co.il сделан на Wix. Свои данные он загружает
+из коллекций Wix Data; сборщик (`scripts/cinema_city.py`) читает их так же,
+как браузер анонимного посетителя:
 
-| Запрос | Что отдаёт |
+1. `GET /_api/v1/access-tokens` → публичный токен посетителя
+   (`apps["675bbcef-18d8-41f5-800e-131ec9e08762"].instance`, приложение Wix Code);
+2. `POST /_api/cloud-data/v2/items/query` с этим токеном в `Authorization`.
+
+| Коллекция | Что в ней |
 |---|---|
-| `GET /tickets/GetDatesByTheater?theaterId=5` | Список дат, на которые есть расписание |
-| `GET /tickets/GetVenueTypesByTheater?theaterId=5` | Типы залов: `1` = רגיל (обычный), `4` = Prime |
-| `GET /tickets/Events?TheatreId=1176&VenueTypeId=4&MovieId=0&Date=26/09/2026` | Фильмы и сеансы на дату для типа зала |
-| `GET /tickets/Movies` | Все фильмы в прокате: `MovieId`, `Name`, `ExportCode` |
-| `GET /movie/{MovieId}` (HTML) | Название иврит/английский, жанр, длительность, премьера, возраст, описание |
+| `SyncPresentations` | сеансы всей сети: `dateTime`, `businessDate` (ночные сеансы относятся к предыдущему дню), `featureId`, `featureName`, `featureAdditionalName` (англ.), `locationName` (`סינמה סיטי נתניה`), `venueTypeName` (`רגיל` / `Prime` / VIP / Lounge / ONYX), зал, язык и дубляж (`dubbedLanguageISO` в `payloadJson`), длительность, `soldout`, `externalId` (номер сеанса) |
+| `SyncFeatures` | фильмы: `externalId` (= номер в адресе `/movie/<номер>`), название на иврите, `additionalName` (англ.), `dateStarted` (премьера), длительность, жанр, возраст, описание |
 
-Идентификаторы Нетании: `ID=5` (обычные залы), `ID=24` (Prime),
-`TixTheatreId=1176` (общий для обоих).
+Ссылка на покупку билета: `https://tickets.cinema-city.co.il/order/<номер сеанса>`.
+
+До 06.10.2026 у сайта были JSON-запросы `/tickets/Events` и др. (теперь 404);
+номера фильмов на новом сайте другие, старые остались в карточках в `cc_movie_id`.
 
 **Все данные хранятся на английском.** Русских названий нет.
 
 **Язык показа** это язык звуковой дорожки в зале: `dubbed` (дубляж на
-иврит, суффикс `-מדובב`), изредка `dubbed (Russian)` (`-מדובב לרוסית`),
+иврит; сайт отдаёт язык дубляжа полем, в названии приписка `-מדובב`),
+изредка `dubbed (Russian)` или `dubbed (French)`,
 иначе основной язык фильма по TMDB, а остальные его языки в скобках:
 `English (+Hungarian, Italian)`. Эти куски в Израиле идут с ивритскими
 субтитрами. `Hebrew` и `dubbed` это разные значения: первое значит
