@@ -80,6 +80,7 @@
 | Английское и оригинальное название, год, страна, языки, жанры, описание | TMDB API, поиск по названию |
 | Бюджет и мировые сборы (`budget_usd`, `revenue_usd`) | TMDB; у новых и небольших фильмов часто пусто |
 | Рейтинг IMDb и число голосов | официальный файл IMDb `title.ratings.tsv.gz` (datasets.imdbws.com), кэш в `data/cache/`, перекачивается раз в сутки. Сам сайт IMDb скрипты не пускает |
+| Сцены во время и после титров (`credits_during`, `credits_after`: yes / no / нет поля = неизвестно) | aftercredits.com (открытый WordPress API); запасной источник: метки TMDB. Описания сцен не копируются (чужой текст, сайт публичный): на странице только ссылка «What happens (spoilers)», открывается по клику |
 | Rotten Tomatoes: критики (Tomatometer) и зрители (Popcornmeter) | страница фильма на rottentomatoes.com, найденная поиском по названию и году |
 
 Рейтинги и деньги меняются, поэтому обновляются при каждом сборе;
@@ -95,6 +96,7 @@ python3 scripts/fetch_schedule.py              # ближайшие выходн
 python3 scripts/fetch_schedule.py 2026-10-02   # конкретные даты
 python3 scripts/fetch_movie.py 6123 --refresh  # пересобрать карточку фильма
 python3 scripts/fetch_ratings.py               # обновить рейтинги во всех карточках
+python3 scripts/fetch_credits.py               # проверить сцены после титров
 python3 scripts/serve.py                       # собрать страницу и открыть на localhost:8000
 ```
 

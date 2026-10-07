@@ -40,6 +40,23 @@ function money(v) {
   if (!v) return null;
   return v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${Math.round(v / 1e6)}M` : `$${v.toLocaleString()}`;
 }
+// Сцены во время (mid) и после (post) титров: значок, только если сцена точно есть
+function creditsBadge(m) {
+  const parts = [m.credits_during === "yes" && "mid", m.credits_after === "yes" && "post"].filter(Boolean);
+  if (!parts.length) return "";
+  const title = parts.map(p => p === "mid" ? "scene during the credits" : "scene after the credits").join(" and ");
+  return `<span class="badge plain" title="Stay to the end: ${title}">${parts.join("+")}-credits</span>`;
+}
+function creditsFact(m) {
+  const yn = v => v === "yes" ? "yes" : v === "no" ? "no" : "unknown";
+  if (!m.credits_source) return "unknown yet";
+  let t = `mid-credits: ${yn(m.credits_during)} · post-credits: ${yn(m.credits_after)}`;
+  if (m.credits_source === "tmdb") t += " (TMDB tags, may be incomplete)";
+  // описание сцен только по явному клику: это спойлеры
+  if (m.credits_url) t += ` · <a href="${esc(m.credits_url)}" target="_blank" rel="noopener">What happens (spoilers) ↗</a>`;
+  return t;
+}
+
 function ratingsText(m) {
   const p = [];
   if (m.imdb_rating) p.push(`IMDb ${m.imdb_rating.toFixed(1)}`);
@@ -119,7 +136,7 @@ function renderSessions(days) {
       return `<div class="session ${rowClass(s)}">
         <div class="time">${timeLink(s)}${note ? `<small>${esc(note)}</small>` : ""}</div>
         <div>
-          <button class="title-btn" data-movie="${esc(s.movie)}">${esc(titleOf(s))}</button>${s.prime ? '<span class="badge">PRIME</span>' : ""}${isWatched(s.movie) ? '<span class="badge plain">✓ watched</span>' : ""}
+          <button class="title-btn" data-movie="${esc(s.movie)}">${esc(titleOf(s))}</button>${s.prime ? '<span class="badge">PRIME</span>' : ""}${creditsBadge(m)}${isWatched(s.movie) ? '<span class="badge plain">✓ watched</span>' : ""}
           <div class="meta">${esc(metaLine(m))}</div>
           <div class="lang">${esc(s.screen_language || "")}</div>
         </div>
@@ -154,7 +171,7 @@ function renderMovies(days) {
       `<span><b>${dayShort(d)}</b> ${list.map(s => `<span class="t ${rowClass(s)}">${timeLink(s)}${s.prime ? '<span class="badge">P</span>' : ""}</span>`).join("")}</span>`).join("");
     return `<article class="movie ${isWatched(it.slug) ? "is-watched" : ""}">
       <div>
-        <button class="title-btn" data-movie="${esc(it.slug)}">${esc(it.name)}</button>${isWatched(it.slug) ? '<span class="badge plain">✓ watched</span>' : ""}
+        <button class="title-btn" data-movie="${esc(it.slug)}">${esc(it.name)}</button>${creditsBadge(m)}${isWatched(it.slug) ? '<span class="badge plain">✓ watched</span>' : ""}
         <div class="meta">${esc([metaLine(m), (m.genre || []).join(", "), m.runtime_min && m.runtime_min + " min"].filter(Boolean).join(" · "))}</div>
         <div class="lang">${esc(langs)}</div>
       </div>
@@ -244,6 +261,7 @@ function openCard(slug) {
       ${fact("Budget", money(m.budget_usd))}
       ${fact("Box office", money(m.revenue_usd) && money(m.revenue_usd) + " worldwide")}
       ${fact("Dubbed version", m.dubbed_available ? "available" : "")}
+      ${fact("Extra scenes", creditsFact(m))}
     </dl>
     ${m.overview ? m.overview.split(/\n\n+/).map(p => `<p>${esc(p)}</p>`).join("") : ""}
     ${sessions.length ? `<h3>Sessions</h3>` + sessions.map(([d, l]) =>
