@@ -40,18 +40,27 @@ function money(v) {
   if (!v) return null;
   return v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${Math.round(v / 1e6)}M` : `$${v.toLocaleString()}`;
 }
-// Сцены во время (mid) и после (post) титров: значок, только если сцена точно есть
+// Оставаться ли после фильма: Stay: … (сцена есть) / No extra scenes / null (неизвестно)
+function stayLabel(m) {
+  const mid = m.credits_during === "yes", end = m.credits_after === "yes";
+  if (mid && end) return "Stay: mid + end";
+  if (mid) return "Stay: mid-credits";
+  if (end) return "Stay: end";
+  if (m.credits_extra === "yes") return "Stay: extra scene";
+  if (m.credits_during === "no" && m.credits_after === "no") return "No extra scenes";
+  return null;
+}
+// В расписании: «Stay» заметно, «No extra scenes» приглушённо, неизвестное не показываем
 function creditsBadge(m) {
-  const parts = [m.credits_during === "yes" && "mid", m.credits_after === "yes" && "post"].filter(Boolean);
-  if (!parts.length) return "";
-  const title = parts.map(p => p === "mid" ? "scene during the credits" : "scene after the credits").join(" and ");
-  return `<span class="badge plain" title="Stay to the end: ${title}">${parts.join("+")}-credits</span>`;
+  const l = stayLabel(m);
+  if (!l) return "";
+  return l.startsWith("Stay")
+    ? `<span class="badge stay" title="Scene during or after the credits">${esc(l)}</span>`
+    : `<span class="badge plain" title="Nothing during or after the credits">${esc(l)}</span>`;
 }
 function creditsFact(m) {
-  const yn = v => v === "yes" ? "yes" : v === "no" ? "no" : "unknown";
-  if (!m.credits_source) return "unknown yet";
-  let t = `mid-credits: ${yn(m.credits_during)} · post-credits: ${yn(m.credits_after)}`;
-  if (m.credits_source === "tmdb") t += " (TMDB tags, may be incomplete)";
+  let t = stayLabel(m) || "unknown yet";
+  if (m.credits_source && m.credits_source !== "aftercredits") t += ` <span class="meta">(${esc(m.credits_source.replace("+", ", "))})</span>`;
   // описание сцен только по явному клику: это спойлеры
   if (m.credits_url) t += ` · <a href="${esc(m.credits_url)}" target="_blank" rel="noopener">What happens (spoilers) ↗</a>`;
   return t;
@@ -261,7 +270,7 @@ function openCard(slug) {
       ${fact("Budget", money(m.budget_usd))}
       ${fact("Box office", money(m.revenue_usd) && money(m.revenue_usd) + " worldwide")}
       ${fact("Dubbed version", m.dubbed_available ? "available" : "")}
-      ${fact("Extra scenes", creditsFact(m))}
+      ${fact("After the film", creditsFact(m))}
     </dl>
     ${m.overview ? m.overview.split(/\n\n+/).map(p => `<p>${esc(p)}</p>`).join("") : ""}
     ${sessions.length ? `<h3>Sessions</h3>` + sessions.map(([d, l]) =>

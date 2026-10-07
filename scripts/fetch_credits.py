@@ -3,14 +3,19 @@
 Использование: python3 scripts/fetch_credits.py [<slug> ...]   (без аргументов: все карточки)
 Обычно вызывается из fetch_schedule.py для фильмов из расписания.
 
-Источник: aftercredits.com (открытый WordPress API, robots.txt не запрещает).
-В записи о фильме два ответа: «Are There Any Extras During The Credits? Yes/No»
-и «... After The Credits? Yes/No». Запасной источник: метки TMDB
-duringcreditsstinger / aftercreditsstinger (только «есть», их отсутствие ничего не значит).
+Источники по старшинству:
+1. aftercredits.com (открытый WordPress API, robots.txt не запрещает): два ответа,
+   «Are There Any Extras During The Credits? Yes/No» и «... After The Credits? Yes/No».
+   Это окончательный ответ, в том числе «нет».
+2. Википедия, «List of films with post-credits scenes (2020s)»: там только фильмы,
+   где сцена есть, поэтому годится лишь для «да». Место (mid / end) берётся из текста
+   описания; если оно не названо, ставится credits_extra: yes.
+3. Метки TMDB duringcreditsstinger / aftercreditsstinger: тоже только «да».
 
 Поля карточки:
   credits_during, credits_after: yes / no / (нет поля = неизвестно)
-  credits_source: aftercredits / tmdb / manual
+  credits_extra: yes, если сцена есть, но неизвестно, во время или после титров
+  credits_source: aftercredits / wikipedia / tmdb / manual (через «+», если несколько)
   credits_url: запись на aftercredits.com (описание сцен, спойлеры)
   credits_checked: дата проверки
 
@@ -29,7 +34,9 @@ from common import MOVIES_DIR, http_get, read_md, today_il, write_md
 from fetch_movie import tmdb
 
 API = "https://aftercredits.com/wp-json/wp/v2/posts"
-FIELDS = ["credits_during", "credits_after", "credits_source", "credits_url", "credits_checked"]
+WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_PAGE = "List_of_films_with_post-credits_scenes_(2020s)"
+FIELDS = ["credits_during", "credits_after", "credits_extra", "credits_source", "credits_url", "credits_checked"]
 
 
 def _norm(s):
@@ -63,6 +70,44 @@ def from_aftercredits(titles, year):
     return None
 
 
+_wiki = None
+
+
+def wikipedia_entries():
+    """{(название, год): текст описания} из списка Википедии; читается один раз за запуск."""
+    global _wiki
+    if _wiki is not None:
+        return _wiki
+    data = http_get(WIKI_API, {"action": "parse", "page": WIKI_PAGE, "prop": "wikitext",
+                               "format": "json", "formatversion": 2})
+    _wiki, year = {}, None
+    for row in data["parse"]["wikitext"].split("\n|-"):
+        y = re.search(r'id="(\d{4})"|rowspan="\d+"\s*\|\s*(\d{4})', row)
+        if y:
+            year = int(y.group(1) or y.group(2))
+        t = re.search(r"''\[\[([^\]|]+)(?:\|([^\]]+))?\]\]''", row)
+        if t and year:
+            title = t.group(2) or re.sub(r"\s*\((?:\d{4} )?film\)$", "", t.group(1))
+            _wiki[(_norm(title), year)] = row[t.end():]
+    return _wiki
+
+
+def from_wikipedia(titles, year):
+    """{'during','after','extra'}: только «yes» или None; None целиком, если фильма в списке нет."""
+    entries = wikipedia_entries()
+    for title in [t for t in titles if t]:
+        for y in ([year, year - 1, year + 1] if year else []):
+            desc = entries.get((_norm(title), y))
+            if desc is None:
+                continue
+            d = desc.lower()
+            during = "mid-credits" in d or "during the credits" in d
+            after = bool(re.search(r"post-credits|end-credits|after the (?:end )?credits", d))
+            return {"during": "yes" if during else None, "after": "yes" if after else None,
+                    "extra": None if during or after else "yes"}
+    return None
+
+
 def from_tmdb(tmdb_id):
     kws = {k["name"] for k in tmdb(f"/movie/{tmdb_id}/keywords").get("keywords", [])}
     return {"during": "yes" if "duringcreditsstinger" in kws else None,
@@ -77,16 +122,28 @@ def update_credits(slug):
     if meta.get("credits_source") == "aftercredits" and meta.get("credits_during") and meta.get("credits_after"):
         return meta  # окончательный ответ уже есть
 
-    found = from_aftercredits([meta.get("title_en"), meta.get("title_original")], meta.get("year"))
+    titles = [meta.get("title_en"), meta.get("title_original")]
+    found = from_aftercredits(titles, meta.get("year"))
     if found and (found["during"] or found["after"]):
         new = {"credits_during": found["during"], "credits_after": found["after"],
                "credits_source": "aftercredits", "credits_url": found["url"]}
-    elif meta.get("tmdb_id"):
-        t = from_tmdb(meta["tmdb_id"])
-        new = ({"credits_during": t["during"], "credits_after": t["after"], "credits_source": "tmdb"}
-               if t["during"] or t["after"] else {})
     else:
-        new = {}
+        # Только подтверждения «да» из Википедии и TMDB; их отсутствие ничего не значит
+        new, sources = {}, []
+        hits = [("wikipedia", from_wikipedia(titles, meta.get("year")))]
+        if meta.get("tmdb_id"):
+            hits.append(("tmdb", from_tmdb(meta["tmdb_id"])))
+        for name, hit in hits:
+            if not hit or not any(hit.values()):
+                continue
+            sources.append(name)
+            for k in ("during", "after", "extra"):
+                if hit.get(k) == "yes":
+                    new[f"credits_{k}"] = "yes"
+        if new.get("credits_during") or new.get("credits_after"):
+            new.pop("credits_extra", None)  # место уже известно
+        if sources:
+            new["credits_source"] = "+".join(sources)
     new["credits_checked"] = today_il().isoformat()
 
     out = {k: v for k, v in meta.items() if k not in FIELDS}
@@ -95,15 +152,24 @@ def update_credits(slug):
     return out
 
 
-def credits_badge(meta):
-    """Короткая пометка для расписания: mid / post / mid+post."""
-    parts = [n for k, n in (("credits_during", "mid"), ("credits_after", "post")) if meta.get(k) == "yes"]
-    return "+".join(parts)
+def stay_label(meta):
+    """Ответ на вопрос «оставаться ли после фильма»: Stay: … / No extra scenes / None (неизвестно)."""
+    mid, end = meta.get("credits_during") == "yes", meta.get("credits_after") == "yes"
+    if mid and end:
+        return "Stay: mid + end"
+    if mid:
+        return "Stay: mid-credits"
+    if end:
+        return "Stay: end"
+    if meta.get("credits_extra") == "yes":
+        return "Stay: extra scene"
+    if meta.get("credits_during") == "no" and meta.get("credits_after") == "no":
+        return "No extra scenes"
+    return None
 
 
 if __name__ == "__main__":
     slugs = sys.argv[1:] or sorted(p.stem for p in MOVIES_DIR.glob("*.md"))
     for s in slugs:
         m = update_credits(s)
-        print(f"{s}: during={m.get('credits_during', '?')} after={m.get('credits_after', '?')} "
-              f"({m.get('credits_source', 'unknown')})")
+        print(f"{s}: {stay_label(m) or 'unknown'} ({m.get('credits_source', '-')})")

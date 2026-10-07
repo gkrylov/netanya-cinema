@@ -15,7 +15,7 @@ import os
 from common import (AVAILABILITY_FILE, DAYS_DIR, MOVIES_DIR, STATUS_FILE, now_il,
                     parse_cc_name, read_md, today_il, watched_slugs, write_md)
 from fetch_movie import ensure_movie
-from fetch_credits import credits_badge, update_credits
+from fetch_credits import stay_label, update_credits
 from fetch_ratings import ratings_line, update_ratings
 
 
@@ -111,8 +111,8 @@ def write_day(d, sessions):
         extra = ", ".join(str(x) for x in [mm.get("year"), ", ".join(mm.get("country") or [])] if x)
         if extra:
             film += f" · {extra}"
-        if credits_badge(mm):
-            film += f" · {credits_badge(mm)}-credits scene"
+        if stay_label(mm):
+            film += f" · {stay_label(mm)}"
         if s["movie"] in watched:
             film += " · ✓ watched"
         t = f"[{s['time']}]({s['ticket_url']})" if s.get("ticket_url") else s["time"]
