@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from common import (AVAILABILITY_FILE, DAYS_DIR, DOSSIERS_DIR, INTERESTING_FILE, MOVIES_DIR, ROOT,
-                    STATUS_FILE, TZ, WATCHED_FILE, now_il, read_md)
+                    SCENES_FILE, STATUS_FILE, TZ, WATCHED_FILE, now_il, read_md)
 
 
 def movie_overview(body):
@@ -65,6 +65,10 @@ def load_interesting():
     return load_sections(INTERESTING_FILE, ["added"])
 
 
+def load_scenes():
+    return load_sections(SCENES_FILE, ["updated"])
+
+
 def load_dossiers():
     """dossiers/<slug>.md → slug: {updated, markdown}."""
     out = {}
@@ -103,6 +107,7 @@ def export(out):
     dump(out / "movies.json", load_movies())
     dump(out / "watched.json", load_watched())
     dump(out / "interesting.json", load_interesting())
+    dump(out / "scenes.json", load_scenes())
     dossiers = load_dossiers()
     for slug, d in dossiers.items():
         dump(out / "dossiers" / f"{slug}.json", d)  # грузится при открытии карточки

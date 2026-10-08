@@ -1,6 +1,6 @@
 // Данные не встроены в страницу: грузятся из data/*.json при открытии (см. init внизу).
 const DATA = { days: [], movies: {}, watched: {}, generated: null };
-let M = {}, W = {}, I = {};   // фильмы, посмотренное, интересное
+let M = {}, W = {}, I = {}, S = {};   // фильмы, посмотренное, интересное, описания сцен после титров
 const TZ = "Asia/Jerusalem";
 
 // ---------- state ----------
@@ -276,6 +276,7 @@ function openCard(slug) {
       ${fact("Dubbed version", m.dubbed_available ? "available" : "")}
       ${fact("After the film", creditsFact(m))}
     </dl>
+    ${S[slug] && S[slug].note ? `<div class="scenes">${renderMarkdown(S[slug].note)}</div>` : ""}
     ${m.overview ? m.overview.split(/\n\n+/).map(p => `<p>${esc(p)}</p>`).join("") : ""}
     ${sessions.length ? `<h3>Sessions</h3>` + sessions.map(([d, l]) =>
       `<div class="sess"><b style="min-width:110px">${dayShort(d)}</b>${l.map(s => `<span class="t ${rowClass(s)}">${timeLink(s)}${s.prime ? '<span class="badge">P</span>' : ""} <span class="meta">${esc(s.screen_language || "")}</span></span>`).join("")}</div>`).join("") : ""}
@@ -418,8 +419,8 @@ async function loadJSON(path) {
 
 async function init() {
   try {
-    const [index, movies, watched, interesting] = await Promise.all(
-      ["data/index.json", "data/movies.json", "data/watched.json", "data/interesting.json"].map(loadJSON));
+    const [index, movies, watched, interesting, scenes] = await Promise.all(
+      ["data/index.json", "data/movies.json", "data/watched.json", "data/interesting.json", "data/scenes.json"].map(loadJSON));
     DATA.generated = index.generated;
     DATA.availability = { collected_at: index.collected_at, published_until: index.published_until,
                           published_dates: index.published_dates || [] };
@@ -427,6 +428,7 @@ async function init() {
     DATA.movies = M = movies;
     DATA.watched = W = watched;
     DATA.interesting = I = interesting;
+    DATA.scenes = S = scenes;
     DATA.dossiers = index.dossiers || [];
     DATA.days = await Promise.all(index.dates.map(d => loadJSON(`data/days/${d}.json`)));
   } catch (e) {

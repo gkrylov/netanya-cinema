@@ -21,6 +21,8 @@ DAYS_DIR = DATA / "days"
 WATCHED_FILE = DATA / "watched.md"
 # Фильмы, помеченные как интересные (ставит Claude по просьбе пользователя)
 INTERESTING_FILE = DATA / "interesting.md"
+# Описания сцен во время и после титров (пишет Claude, по-русски, под спойлером)
+SCENES_FILE = DATA / "scenes.md"
 # Досье на фильм: dossiers/<slug>.md, собирает Claude по просьбе пользователя
 DOSSIERS_DIR = DATA / "dossiers"
 # Какие даты Cinema City уже выложил и когда был последний сбор
