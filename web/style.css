@@ -61,6 +61,8 @@ select { border-radius: 8px; padding: 5px 8px; }
 .dossier h4 { font-size: 14px; margin: 14px 0 4px; }
 .dossier ul { margin: 0 0 8px; padding-left: 20px; font-size: 14px; }
 .dossier li { margin-bottom: 3px; }
+.spoiler { background: var(--ink); color: transparent; border-radius: 3px; cursor: pointer; user-select: none; }
+.spoiler.shown { background: var(--surface-2); color: inherit; cursor: auto; user-select: text; }
 .is-watched { opacity: .42; }
 .is-past { opacity: .5; }
 .is-removed .time, .is-removed .title-btn { text-decoration: line-through; }

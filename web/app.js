@@ -305,10 +305,12 @@ async function loadDossier(slug) {
   }
 }
 
-// Небольшой Markdown для досье: заголовки, списки, абзацы, **жирный**, *курсив*, ссылки.
+// Небольшой Markdown для досье: заголовки, списки, абзацы, **жирный**, *курсив*, ссылки,
+// ||спойлер|| (скрыт, открывается нажатием).
 // Сначала всё экранируется, поэтому HTML из текста не выполняется.
 function renderMarkdown(md) {
   const inline = t => esc(t)
+    .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" tabindex="0" role="button" title="Spoiler: click to show">$1</span>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
     .replace(/(^|[^*])\*([^*]+)\*/g, "$1<i>$2</i>");
@@ -382,6 +384,12 @@ function render() {
   document.getElementById("main").innerHTML = statusNotice() + missingNotice() + r.html;
   document.getElementById("count").textContent = `${r.shown} ${r.unit || "sessions"}`;
 }
+
+// Спойлер в досье открывается только явным нажатием
+document.getElementById("card").addEventListener("click", e => {
+  const sp = e.target.closest(".spoiler");
+  if (sp) { sp.classList.add("shown"); e.stopPropagation(); }
+});
 
 document.getElementById("main").addEventListener("click", e => {
   const b = e.target.closest("[data-movie]");
