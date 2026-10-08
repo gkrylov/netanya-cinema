@@ -1,10 +1,10 @@
 // Данные не встроены в страницу: грузятся из data/*.json при открытии (см. init внизу).
 const DATA = { days: [], movies: {}, watched: {}, generated: null };
-let M = {}, W = {};
+let M = {}, W = {}, I = {};   // фильмы, посмотренное, интересное
 const TZ = "Asia/Jerusalem";
 
 // ---------- state ----------
-const DEFAULTS = { view: "sessions", prime: false, hidewatched: true, hidepast: false,
+const DEFAULTS = { view: "sessions", prime: false, interesting: false, hidewatched: true, hidepast: false,
                    lang: "any", after: "0", imdb: "0", sort: "imdb" };
 let state = { ...DEFAULTS };
 try { Object.assign(state, JSON.parse(localStorage.getItem("cinema-state") || "{}")); } catch (e) {}
@@ -35,6 +35,8 @@ const dayShort = iso => new Date(iso + "T12:00").toLocaleDateString("en-GB", { w
 const startOf = s => new Date(s.start);
 const isPast = s => startOf(s) < new Date();
 const isWatched = slug => !!W[slug];
+const isInteresting = slug => !!I[slug];
+const starBadge = slug => isInteresting(slug) ? '<span class="badge star" title="Marked as interesting">★</span>' : "";
 const minutesOfDay = s => { const [h, m] = s.time.split(":").map(Number); return (s.after_midnight ? 24 * 60 : 0) + h * 60 + m; };
 function money(v) {
   if (!v) return null;
@@ -79,6 +81,7 @@ function metaLine(m) {
 function passes(s) {
   const m = movieOf(s), lang = s.screen_language || "";
   if (state.prime && !s.prime) return false;
+  if (state.interesting && !isInteresting(s.movie)) return false;
   if (state.hidewatched && isWatched(s.movie)) return false;
   if (state.hidepast && isPast(s)) return false;
   if (state.lang === "nodub" && lang.startsWith("dubbed")) return false;
@@ -124,7 +127,7 @@ function bindControls() {
     const b = e.target.closest("[data-view]"); if (!b) return;
     state.view = b.dataset.view; save(); render();
   };
-  for (const k of ["prime", "hidewatched", "hidepast"]) {
+  for (const k of ["prime", "interesting", "hidewatched", "hidepast"]) {
     document.getElementById("f-" + k).onclick = () => { state[k] = !state[k]; save(); render(); };
   }
   for (const k of ["lang", "after", "imdb", "sort"]) {
@@ -145,7 +148,7 @@ function renderSessions(days) {
       return `<div class="session ${rowClass(s)}">
         <div class="time">${timeLink(s)}${note ? `<small>${esc(note)}</small>` : ""}</div>
         <div>
-          <button class="title-btn" data-movie="${esc(s.movie)}">${esc(titleOf(s))}</button>${s.prime ? '<span class="badge">PRIME</span>' : ""}${creditsBadge(m)}${isWatched(s.movie) ? '<span class="badge plain">✓ watched</span>' : ""}
+          <button class="title-btn" data-movie="${esc(s.movie)}">${esc(titleOf(s))}</button>${starBadge(s.movie)}${s.prime ? '<span class="badge">PRIME</span>' : ""}${creditsBadge(m)}${isWatched(s.movie) ? '<span class="badge plain">✓ watched</span>' : ""}
           <div class="meta">${esc(metaLine(m))}</div>
           <div class="lang">${esc(s.screen_language || "")}</div>
         </div>
@@ -180,7 +183,7 @@ function renderMovies(days) {
       `<span><b>${dayShort(d)}</b> ${list.map(s => `<span class="t ${rowClass(s)}">${timeLink(s)}${s.prime ? '<span class="badge">P</span>' : ""}</span>`).join("")}</span>`).join("");
     return `<article class="movie ${isWatched(it.slug) ? "is-watched" : ""}">
       <div>
-        <button class="title-btn" data-movie="${esc(it.slug)}">${esc(it.name)}</button>${creditsBadge(m)}${isWatched(it.slug) ? '<span class="badge plain">✓ watched</span>' : ""}
+        <button class="title-btn" data-movie="${esc(it.slug)}">${esc(it.name)}</button>${starBadge(it.slug)}${creditsBadge(m)}${isWatched(it.slug) ? '<span class="badge plain">✓ watched</span>' : ""}
         <div class="meta">${esc([metaLine(m), (m.genre || []).join(", "), m.runtime_min && m.runtime_min + " min"].filter(Boolean).join(" · "))}</div>
         <div class="lang">${esc(langs)}</div>
       </div>
@@ -243,7 +246,7 @@ function renderTimeline(days) {
 // ---------- movie card ----------
 function openCard(slug) {
   const m = M[slug]; if (!m) return;
-  const w = W[slug];
+  const w = W[slug], fav = I[slug];
   const sessions = DATA.days.filter(d => selected.includes(d.date))
     .map(d => [d.date, d.sessions.filter(s => s.movie === slug)]).filter(([, l]) => l.length);
   const fact = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
@@ -254,6 +257,7 @@ function openCard(slug) {
     <h2>${esc(m.title_en || m.title_he)}${m.year ? ` <span style="color:var(--ink-3);font-weight:400">(${m.year})</span>` : ""}</h2>
     ${m.title_original && m.title_original !== m.title_en ? `<div class="orig">${esc(m.title_original)}</div>` : ""}
     <div class="orig" dir="rtl" style="text-align:left">${esc(m.title_he)}</div>
+    ${fav ? `<div class="note star"><b>★ Interesting</b>${fav.added ? " · since " + esc(fav.added) : ""}${fav.note ? `<div>${esc(fav.note)}</div>` : ""}</div>` : ""}
     ${w ? `<div class="note"><b>✓ Watched</b>${w.watched ? " · " + esc(w.watched) : ""}${w.rating ? " · " + esc(w.rating) + "/10" : ""}${w.note ? `<div>${esc(w.note)}</div>` : ""}</div>` : ""}
     <div class="scores">
       ${score(m.imdb_rating != null ? m.imdb_rating.toFixed(1) : null, `IMDb${m.imdb_votes ? " · " + m.imdb_votes.toLocaleString() + " votes" : ""}`, m.imdb_id && `https://www.imdb.com/title/${m.imdb_id}/`)}
@@ -281,10 +285,49 @@ function openCard(slug) {
           m.rt_url && `<a href="${esc(m.rt_url)}" target="_blank" rel="noopener">Rotten Tomatoes</a>`,
           (m.cc_movie_id || []).length && `<a href="https://www.cinema-city.co.il/movie/${m.cc_movie_id[m.cc_movie_id.length - 1]}" target="_blank" rel="noopener">Cinema City</a>`]
           .filter(Boolean).join(" · ")}</p>
+    ${DATA.dossiers.includes(slug) ? `<section class="dossier" id="dossier"><h3>Dossier</h3><p class="meta">Loading…</p></section>` : ""}
   </div>`;
   dlg.querySelector(".close").onclick = () => dlg.close();
   dlg.onclick = e => { if (e.target === dlg) dlg.close(); };
   dlg.showModal();
+  if (DATA.dossiers.includes(slug)) loadDossier(slug);
+}
+
+// Досье грузится при открытии карточки: оно большое и нужно не всегда
+async function loadDossier(slug) {
+  const box = document.getElementById("dossier");
+  try {
+    const d = await loadJSON(`data/dossiers/${slug}.json`);
+    if (!box.isConnected) return;
+    box.innerHTML = `<h3>Dossier${d.updated ? ` <span class="meta">· updated ${esc(d.updated)}</span>` : ""}</h3>` + renderMarkdown(d.markdown);
+  } catch (e) {
+    box.innerHTML = `<h3>Dossier</h3><p class="meta">Could not load the dossier (${esc(e.message)}).</p>`;
+  }
+}
+
+// Небольшой Markdown для досье: заголовки, списки, абзацы, **жирный**, *курсив*, ссылки.
+// Сначала всё экранируется, поэтому HTML из текста не выполняется.
+function renderMarkdown(md) {
+  const inline = t => esc(t)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<i>$2</i>");
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push(`<ul>${list.join("")}</ul>`); list = null; } };
+  for (const block of md.split(/\n{2,}/)) {
+    for (const line of block.split("\n")) {
+      const h = line.match(/^(#{2,4})\s+(.*)$/), li = line.match(/^\s*[-*]\s+(.*)$/);
+      if (h) { closeList(); out.push(`<h4>${inline(h[2])}</h4>`); }
+      else if (li) { (list ||= []).push(`<li>${inline(li[1])}</li>`); }
+      else if (line.trim()) {
+        if (list && /^\s{2,}/.test(line)) list[list.length - 1] = list[list.length - 1].replace("</li>", " " + inline(line.trim()) + "</li>");
+        else { closeList(); out.push(`<p>${inline(line)}</p>`); }
+      }
+    }
+    closeList();
+  }
+  return out.join("");
 }
 
 // ---------- render ----------
@@ -331,7 +374,7 @@ function missingNotice() {
 function render() {
   renderDates();
   document.querySelectorAll("#views .tab").forEach(b => b.setAttribute("aria-selected", b.dataset.view === state.view));
-  for (const k of ["prime", "hidewatched", "hidepast"]) document.getElementById("f-" + k).setAttribute("aria-pressed", state[k]);
+  for (const k of ["prime", "interesting", "hidewatched", "hidepast"]) document.getElementById("f-" + k).setAttribute("aria-pressed", state[k]);
   document.getElementById("sort-wrap").style.display = state.view === "movies" ? "" : "none";
   const days = selectedDays();
   const r = !days.length ? { html: "", shown: 0 }   // нет данных: остаётся только объяснение
@@ -367,14 +410,16 @@ async function loadJSON(path) {
 
 async function init() {
   try {
-    const [index, movies, watched] = await Promise.all(
-      ["data/index.json", "data/movies.json", "data/watched.json"].map(loadJSON));
+    const [index, movies, watched, interesting] = await Promise.all(
+      ["data/index.json", "data/movies.json", "data/watched.json", "data/interesting.json"].map(loadJSON));
     DATA.generated = index.generated;
     DATA.availability = { collected_at: index.collected_at, published_until: index.published_until,
                           published_dates: index.published_dates || [] };
     DATA.status = index.status || {};
     DATA.movies = M = movies;
     DATA.watched = W = watched;
+    DATA.interesting = I = interesting;
+    DATA.dossiers = index.dossiers || [];
     DATA.days = await Promise.all(index.dates.map(d => loadJSON(`data/days/${d}.json`)));
   } catch (e) {
     document.getElementById("main").innerHTML =

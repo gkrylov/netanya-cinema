@@ -12,7 +12,8 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from common import AVAILABILITY_FILE, STATUS_FILE, DAYS_DIR, MOVIES_DIR, ROOT, TZ, WATCHED_FILE, now_il, read_md
+from common import (AVAILABILITY_FILE, DAYS_DIR, DOSSIERS_DIR, INTERESTING_FILE, MOVIES_DIR, ROOT,
+                    STATUS_FILE, TZ, WATCHED_FILE, now_il, read_md)
 
 
 def movie_overview(body):
@@ -32,27 +33,44 @@ def load_movies():
     return movies
 
 
-def load_watched():
-    """Разделы «## Title» в watched.md → slug: {title, watched, rating, note}."""
-    if not WATCHED_FILE.exists():
+def load_sections(path, fields):
+    """Разделы «## Title» со строками «поле: значение» → slug: {title, поля..., note}.
+
+    Так устроены watched.md и interesting.md; всё, что не поле, считается заметкой.
+    """
+    if not path.exists():
         return {}
     out = {}
-    for section in re.split(r"^## ", WATCHED_FILE.read_text(), flags=re.M)[1:]:
+    pattern = re.compile(rf"^({'|'.join(['movie', *fields])}):\s*(.*)$")
+    for section in re.split(r"^## ", path.read_text(), flags=re.M)[1:]:
         title, _, rest = section.partition("\n")
-        fields, note = {}, []
+        found, note = {}, []
         for line in rest.strip().splitlines():
-            m = re.match(r"^(movie|watched|rating):\s*(.*)$", line)
+            m = pattern.match(line)
             if m:
-                fields[m.group(1)] = m.group(2).strip() or None
+                found[m.group(1)] = m.group(2).strip() or None
             else:
                 note.append(line)
-        if fields.get("movie"):
-            out[fields["movie"]] = {
-                "title": title.strip(),
-                "watched": fields.get("watched"),
-                "rating": fields.get("rating"),
-                "note": "\n".join(note).strip() or None,
-            }
+        if found.get("movie"):
+            out[found["movie"]] = {"title": title.strip(), **{f: found.get(f) for f in fields},
+                                   "note": "\n".join(note).strip() or None}
+    return out
+
+
+def load_watched():
+    return load_sections(WATCHED_FILE, ["watched", "rating"])
+
+
+def load_interesting():
+    return load_sections(INTERESTING_FILE, ["added"])
+
+
+def load_dossiers():
+    """dossiers/<slug>.md → slug: {updated, markdown}."""
+    out = {}
+    for p in sorted(DOSSIERS_DIR.glob("*.md")) if DOSSIERS_DIR.exists() else []:
+        meta, body = read_md(p)
+        out[p.stem] = {"updated": meta.get("updated"), "markdown": body.strip()}
     return out
 
 
@@ -84,6 +102,10 @@ def export(out):
         dump(out / "days" / f"{day['date']}.json", day)
     dump(out / "movies.json", load_movies())
     dump(out / "watched.json", load_watched())
+    dump(out / "interesting.json", load_interesting())
+    dossiers = load_dossiers()
+    for slug, d in dossiers.items():
+        dump(out / "dossiers" / f"{slug}.json", d)  # грузится при открытии карточки
     dump(out / "index.json", {
         "generated": now_il().isoformat(timespec="seconds"),
         "dates": [d["date"] for d in days],
@@ -91,6 +113,7 @@ def export(out):
         "published_until": avail.get("published_until"),
         "published_dates": avail.get("published_dates") or [],
         "status": status,
+        "dossiers": sorted(dossiers),
     })
     return out
 

@@ -19,6 +19,10 @@ TZ = ZoneInfo("Asia/Jerusalem")
 MOVIES_DIR = DATA / "movies"
 DAYS_DIR = DATA / "days"
 WATCHED_FILE = DATA / "watched.md"
+# Фильмы, помеченные как интересные (ставит Claude по просьбе пользователя)
+INTERESTING_FILE = DATA / "interesting.md"
+# Досье на фильм: dossiers/<slug>.md, собирает Claude по просьбе пользователя
+DOSSIERS_DIR = DATA / "dossiers"
 # Какие даты Cinema City уже выложил и когда был последний сбор
 AVAILABILITY_FILE = DATA / "availability.md"
 # Итог последней попытки сбора (удалась ли, текст ошибки): его показывает страница
@@ -190,3 +194,10 @@ def watched_slugs():
     if not WATCHED_FILE.exists():
         return set()
     return set(re.findall(r"^movie:\s*(\S+)", WATCHED_FILE.read_text(), re.M))
+
+
+def interesting_slugs():
+    """Фильмы из data/interesting.md (строки вида «movie: <slug>»)."""
+    if not INTERESTING_FILE.exists():
+        return set()
+    return set(re.findall(r"^movie:\s*(\S+)", INTERESTING_FILE.read_text(), re.M))
