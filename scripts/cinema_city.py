@@ -37,8 +37,8 @@ def _auth():
 RETRY_WAITS = [10, 30, 60, 120]
 
 
-def _post_query(body):
-    for attempt, wait in enumerate([*RETRY_WAITS, None]):
+def _post_query(body, retry=True):
+    for attempt, wait in enumerate([*(RETRY_WAITS if retry else []), None]):
         req = urllib.request.Request(f"{BASE}/_api/cloud-data/v2/items/query", body, {
             "User-Agent": UA, "Authorization": _auth(), "Content-Type": "application/json"})
         try:
@@ -53,7 +53,7 @@ def _post_query(body):
             time.sleep(pause)
 
 
-def _query(collection, filter_=None):
+def _query(collection, filter_=None, retry=True):
     """Все записи коллекции, подходящие под фильтр (с постраничной выдачей)."""
     items, cursor = [], None
     while True:
@@ -61,7 +61,7 @@ def _query(collection, filter_=None):
         if filter_ and not cursor:
             query["filter"] = filter_
         body = json.dumps({"dataCollectionId": collection, "query": query}).encode()
-        page = _post_query(body)
+        page = _post_query(body, retry)
         items += [x["data"] for x in page.get("dataItems", [])]
         cursor = (page.get("pagingMetadata") or {}).get("cursors", {}).get("next")
         if not cursor:
@@ -89,6 +89,8 @@ def presentations(location=NETANYA):
     """Сеансы кинотеатра: список словарей в формате файла дня."""
     out = []
     for item in _query("SyncPresentations", {"locationName": location}):
+        # Сведения о фильме из самого сеанса: хватает для карточки без второго запроса к Wix
+        _from_presentations.setdefault(str(int(item["featureId"])), item)  # приходит как 6555.0
         p = _payload(item)
         start = datetime.strptime(item["dateTime"], "%Y-%m-%d %H:%M")
         business = date.fromisoformat(str(p.get("businessDate") or item["dateTime"][:10]))
@@ -111,23 +113,47 @@ def presentations(location=NETANYA):
     return out
 
 
-_features = {}
+_features = {}            # externalId → запись SyncFeatures (полные сведения о фильме)
+_from_presentations = {}  # featureId → запись сеанса (название, жанр, длительность, возраст)
 
 
 def prefetch_features(feature_ids):
-    """Загрузить фильмы одним запросом вместо запроса на каждый (меньше шансов получить 429)."""
+    """Загрузить фильмы одним запросом, без долгих повторов.
+
+    На серверах GitHub Wix отвечает «429» на второй запрос подряд, поэтому эти
+    сведения необязательные: при отказе карточка строится из данных сеанса
+    (без даты премьеры и описания), а отказ поднимается наверх как предупреждение.
+    """
     ids = [str(i) for i in set(feature_ids) if str(i) not in _features]
     for chunk in (ids[i:i + 100] for i in range(0, len(ids), 100)):
-        for item in _query("SyncFeatures", {"externalId": {"$hasSome": chunk}}):
+        for item in _query("SyncFeatures", {"externalId": {"$hasSome": chunk}}, retry=False):
             _features[str(item["externalId"])] = item
 
 
 def feature(feature_id):
-    """Фильм по номеру (тот же номер в адресе /movie/<номер>), или None."""
+    """Фильм по номеру (тот же номер в адресе /movie/<номер>), или None.
+
+    Берётся из SyncFeatures, если он загружен; иначе из данных сеанса (без премьеры и описания).
+    """
     key = str(feature_id)
-    if key not in _features:
-        prefetch_features([key])
     item = _features.get(key)
+    if item is None:
+        pres = _from_presentations.get(key)
+        if pres is None:
+            prefetch_features([key])  # фильм не из расписания (например, вызов вручную)
+            item = _features.get(key)
+        else:
+            p = _payload(pres)
+            return {
+                "title_he": pres.get("featureName"),
+                "title_en": pres.get("featureAdditionalName") or None,
+                "genre_he": pres.get("featureCategoryName"),
+                "runtime_min": p.get("durationInMinutes"),
+                "premiere_il": None,
+                "age_he": pres.get("featureRatingName"),
+                "synopsis_he": None,
+                "original_language_iso": p.get("languageISO"),
+            }
     if item is None:
         return None
     p = _payload(item)

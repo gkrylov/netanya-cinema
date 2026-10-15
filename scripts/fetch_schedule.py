@@ -38,8 +38,9 @@ WARNINGS = []
 
 def warn(what, e):
     msg = f"{what}: {type(e).__name__}: {e}"
-    print("  ВНИМАНИЕ:", msg)
-    WARNINGS.append(msg)
+    if msg not in WARNINGS:  # одна и та же проблема по каждому сеансу фильма
+        print("  ВНИМАНИЕ:", msg)
+        WARNINGS.append(msg)
 
 
 def collect_day(d, presentations):
@@ -202,8 +203,12 @@ def collect():
     published = published_dates(presentations)
     until = write_availability(published)
     dates = [d for d in wanted if d in published]
-    # все фильмы нужных дней одним запросом: по запросу на фильм Wix отвечал «429»
-    cinema_city.prefetch_features({p["feature_id"] for p in presentations if p["business_date"] in dates})
+    # Полные сведения о новых фильмах одним запросом; необязательно: на GitHub Wix
+    # отвечает «429» на второй запрос, тогда карточки строятся из данных сеансов.
+    try:
+        cinema_city.prefetch_features({p["feature_id"] for p in presentations if p["business_date"] in dates})
+    except Exception as e:
+        warn("film details from Cinema City (premiere date, Hebrew synopsis) for new films", e)
     for d in wanted:
         if d not in published:
             print(f"{d}: Cinema City ещё не выложил расписание (сплошное расписание до {until})")
