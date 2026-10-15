@@ -9,6 +9,8 @@
 """
 
 import json
+import time
+import urllib.error
 import urllib.request
 from datetime import date, datetime
 
@@ -30,6 +32,27 @@ def _auth():
     return _token
 
 
+# Паузы перед повторами при отказе «429 Too Many Requests» или сбое сервера, в секундах.
+# Wix ограничивает частоту запросов, особенно с общих адресов серверов GitHub.
+RETRY_WAITS = [10, 30, 60, 120]
+
+
+def _post_query(body):
+    for attempt, wait in enumerate([*RETRY_WAITS, None]):
+        req = urllib.request.Request(f"{BASE}/_api/cloud-data/v2/items/query", body, {
+            "User-Agent": UA, "Authorization": _auth(), "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if wait is None or not (e.code == 429 or e.code >= 500):
+                raise
+            retry_after = e.headers.get("Retry-After")
+            pause = int(retry_after) if retry_after and retry_after.isdigit() else wait
+            print(f"  Cinema City: HTTP {e.code}, повтор через {pause} с (попытка {attempt + 2})")
+            time.sleep(pause)
+
+
 def _query(collection, filter_=None):
     """Все записи коллекции, подходящие под фильтр (с постраничной выдачей)."""
     items, cursor = [], None
@@ -38,10 +61,7 @@ def _query(collection, filter_=None):
         if filter_ and not cursor:
             query["filter"] = filter_
         body = json.dumps({"dataCollectionId": collection, "query": query}).encode()
-        req = urllib.request.Request(f"{BASE}/_api/cloud-data/v2/items/query", body, {
-            "User-Agent": UA, "Authorization": _auth(), "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            page = json.loads(r.read())
+        page = _post_query(body)
         items += [x["data"] for x in page.get("dataItems", [])]
         cursor = (page.get("pagingMetadata") or {}).get("cursors", {}).get("next")
         if not cursor:
@@ -91,12 +111,25 @@ def presentations(location=NETANYA):
     return out
 
 
+_features = {}
+
+
+def prefetch_features(feature_ids):
+    """Загрузить фильмы одним запросом вместо запроса на каждый (меньше шансов получить 429)."""
+    ids = [str(i) for i in set(feature_ids) if str(i) not in _features]
+    for chunk in (ids[i:i + 100] for i in range(0, len(ids), 100)):
+        for item in _query("SyncFeatures", {"externalId": {"$hasSome": chunk}}):
+            _features[str(item["externalId"])] = item
+
+
 def feature(feature_id):
     """Фильм по номеру (тот же номер в адресе /movie/<номер>), или None."""
-    items = _query("SyncFeatures", {"externalId": str(feature_id)})
-    if not items:
+    key = str(feature_id)
+    if key not in _features:
+        prefetch_features([key])
+    item = _features.get(key)
+    if item is None:
         return None
-    item = items[0]
     p = _payload(item)
     return {
         "title_he": item.get("name") or p.get("name"),

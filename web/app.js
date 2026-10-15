@@ -349,6 +349,8 @@ function statusNotice() {
   }
   const last = st.last_success_at || DATA.availability.collected_at;
   const ageH = last ? (Date.now() - new Date(last)) / 36e5 : Infinity;
+  if (st.ok !== false && st.warnings && st.warnings.length)
+    lines.push(`<b>Updated with problems</b> (some details may be outdated): ${st.warnings.map(w => `<code>${esc(w)}</code>`).join("; ")}.`);
   if (st.ok !== false && ageH > STALE_HOURS)
     lines.push(`<b>The schedule has not been updated for ${Math.floor(ageH)} hours</b>; the updater may not be running.`);
   if (!lines.length) return "";

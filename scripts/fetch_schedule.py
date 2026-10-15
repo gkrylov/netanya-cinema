@@ -31,6 +31,17 @@ def weekend_dates(today=None):
     return [fri, fri + timedelta(days=1)]
 
 
+# Проблемы, из-за которых сбор не падает целиком, но часть сведений не обновилась.
+# Попадают в data/status.md и показываются на сайте.
+WARNINGS = []
+
+
+def warn(what, e):
+    msg = f"{what}: {type(e).__name__}: {e}"
+    print("  ВНИМАНИЕ:", msg)
+    WARNINGS.append(msg)
+
+
 def collect_day(d, presentations):
     """Сеансы одного дня из сеансов кинотеатра (день = businessDate сайта: ночные идут к предыдущему)."""
     sessions = []
@@ -38,7 +49,11 @@ def collect_day(d, presentations):
         if p["business_date"] != d:
             continue
         parsed = parse_cc_name(p["cc_name"])
-        slug = ensure_movie(p["feature_id"], p["cc_name"])
+        try:
+            slug = ensure_movie(p["feature_id"], p["cc_name"])
+        except Exception as e:  # без карточки сеанс всё равно попадёт в расписание (с названием на иврите)
+            warn(f"movie card for {p['cc_name']}", e)
+            slug = None
         sessions.append({
             "time": p["start"].strftime("%H:%M"),
             "after_midnight": p["start"].date() > d,
@@ -187,6 +202,8 @@ def collect():
     published = published_dates(presentations)
     until = write_availability(published)
     dates = [d for d in wanted if d in published]
+    # все фильмы нужных дней одним запросом: по запросу на фильм Wix отвечал «429»
+    cinema_city.prefetch_features({p["feature_id"] for p in presentations if p["business_date"] in dates})
     for d in wanted:
         if d not in published:
             print(f"{d}: Cinema City ещё не выложил расписание (сплошное расписание до {until})")
@@ -194,7 +211,10 @@ def collect():
     slugs = sorted({s["movie"] for _, ss in days for s in ss if s["movie"]})
     print(f"Рейтинги: {len(slugs)} фильмов...")
     for slug in slugs:
-        update_ratings(slug)
+        try:
+            update_ratings(slug)
+        except Exception as e:  # рейтинги останутся прежними, но об этом будет видно на сайте
+            warn(f"ratings for {slug}", e)
         try:
             update_credits(slug)
         except Exception as e:  # сведения о сценах после титров не главное: сбор не роняем, но пишем в лог
@@ -217,7 +237,7 @@ def run_url():
     return None
 
 
-def write_status(ok, error=None):
+def write_status(ok, error=None, warnings=None):
     """Записать итог попытки сбора в data/status.md: его показывает страница."""
     old = read_md(STATUS_FILE)[0] if STATUS_FILE.exists() else {}
     now = now_il().isoformat(timespec="seconds")
@@ -228,11 +248,14 @@ def write_status(ok, error=None):
         # когда начались ошибки подряд (сбрасывается при успехе)
         "failing_since": None if ok else (old.get("failing_since") if old.get("ok") is False else now),
         "error": error,
+        # сбор прошёл, но часть сведений не обновилась
+        "warnings": (warnings or None) if ok else None,
         "run_url": run_url(),
     }
     meta = {k: v for k, v in meta.items() if v is not None or k in ("ok",)}
     body = "# Collector status\n\n" + (
-        f"Last update succeeded at {now}." if ok else
+        f"Last update succeeded at {now}." + (
+            "\n\nWith problems:\n" + "\n".join(f"- {w}" for w in warnings) if warnings else "") if ok else
         f"Last update FAILED at {now}:\n\n```\n{error}\n```")
     write_md(STATUS_FILE, meta, body)
 
@@ -245,7 +268,7 @@ def main():
         last = traceback.extract_tb(e.__traceback__)[-1]
         write_status(False, f"{type(e).__name__}: {e} (in {os.path.basename(last.filename)}:{last.lineno})")
         raise
-    write_status(True)
+    write_status(True, warnings=WARNINGS)
 
 
 if __name__ == "__main__":
