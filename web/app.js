@@ -341,22 +341,27 @@ const fmtWhen = ts => new Date(ts).toLocaleString("en-GB", { timeZone: TZ, weekd
 const STALE_HOURS = 30;
 function statusNotice() {
   const st = DATA.status || {};
-  const lines = [];
+  const red = [];   // сбор упал или давно не было обновлений: данные могут быть устаревшими
   if (st.ok === false) {
-    lines.push(`<b>Schedule update failed</b> (last attempt ${esc(fmtWhen(st.last_attempt_at))}` +
+    red.push(`<b>Schedule update failed</b> (last attempt ${esc(fmtWhen(st.last_attempt_at))}` +
       (st.failing_since && st.failing_since !== st.last_attempt_at ? `, failing since ${esc(fmtWhen(st.failing_since))}` : "") + ").");
-    if (st.error) lines.push(`Error: <code>${esc(st.error)}</code>.`);
+    if (st.error) red.push(`Error: <code>${esc(st.error)}</code>.`);
   }
   const last = st.last_success_at || DATA.availability.collected_at;
   const ageH = last ? (Date.now() - new Date(last)) / 36e5 : Infinity;
-  if (st.ok !== false && st.warnings && st.warnings.length)
-    lines.push(`<b>Updated with problems</b> (some details may be outdated): ${st.warnings.map(w => `<code>${esc(w)}</code>`).join("; ")}.`);
   if (st.ok !== false && ageH > STALE_HOURS)
-    lines.push(`<b>The schedule has not been updated for ${Math.floor(ageH)} hours</b>; the updater may not be running.`);
-  if (!lines.length) return "";
-  lines.push(last ? `Showing data from ${esc(fmtWhen(last))}.` : "No successful update yet.");
-  if (st.run_url) lines.push(`<a href="${esc(st.run_url)}" target="_blank" rel="noopener">Updater log</a>`);
-  return `<div class="notice error">${lines.join(" ")}</div>`;
+    red.push(`<b>The schedule has not been updated for ${Math.floor(ageH)} hours</b>; the updater may not be running.`);
+  const log = st.run_url ? ` <a href="${esc(st.run_url)}" target="_blank" rel="noopener">Updater log</a>` : "";
+  let html = "";
+  if (red.length) {
+    red.push(last ? `Showing data from ${esc(fmtWhen(last))}.` : "No successful update yet.");
+    html += `<div class="notice error">${red.join(" ")}${log}</div>`;
+  }
+  // Сбор прошёл, но часть сведений не обновилась: жёлтое, а не красное (расписание свежее)
+  if (st.ok !== false && st.warnings && st.warnings.length)
+    html += `<div class="notice warn"><b>Updated with minor problems</b>: the schedule is current, some film details may be missing: ` +
+      `${st.warnings.map(w => `<code>${esc(w)}</code>`).join("; ")}.${red.length ? "" : log}</div>`;
+  return html;
 }
 
 // Выбранные даты без расписания: объяснить, до какого дня Cinema City его выложил
