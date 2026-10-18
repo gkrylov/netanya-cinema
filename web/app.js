@@ -358,9 +358,47 @@ function statusNotice() {
     html += `<div class="notice error">${red.join(" ")}${log}</div>`;
   }
   // Сбор прошёл, но часть сведений не обновилась: жёлтое, а не красное (расписание свежее)
-  if (st.ok !== false && st.warnings && st.warnings.length)
-    html += `<div class="notice warn"><b>Updated with minor problems</b>: the schedule is current, some film details may be missing: ` +
+  // Её можно закрыть: она вернётся, только если предупреждения изменятся
+  if (st.ok !== false && st.warnings && st.warnings.length && !isDismissed("warn", warnKey(st)))
+    html += `<div class="notice warn"><button class="close" data-dismiss="warn" title="Hide until the problems change" aria-label="Close">×</button>` +
+      `<b>Updated with minor problems</b>: the schedule is current, some details may be missing: ` +
       `${st.warnings.map(w => `<code>${esc(w)}</code>`).join("; ")}.${red.length ? "" : log}</div>`;
+  return html;
+}
+
+// Закрытые плашки помнит браузер; ключ это содержимое плашки
+const warnKey = st => (st.warnings || []).join("\n");
+function isDismissed(kind, key) {
+  try { return localStorage.getItem("cinema-dismissed-" + kind) === key; } catch (e) { return false; }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-dismiss]"); if (!b) return;
+  try { localStorage.setItem("cinema-dismissed-" + b.dataset.dismiss, warnKey(DATA.status || {})); } catch (e) {}
+  b.closest(".notice").remove();
+});
+
+// Матчи на стадионе рядом с кинотеатром: в такой день трудно с парковкой
+const STADIUM_AHEAD_DAYS = 42;
+function matchLine(m) {
+  const when = m.tentative ? `~${esc(m.time)} (date and time TBC)` : esc(m.time);
+  return `${esc(fmtDay(m.date))}, ${when}: <b>${esc(m.home)}</b> vs <b>${esc(m.away)}</b>` +
+    ` <span class="meta">${esc(m.league)}${m.postponed ? ", postponed" : ""}</span>`;
+}
+function stadiumNotice() {
+  const now = Date.now(), until = now + STADIUM_AHEAD_DAYS * 864e5;
+  // матч ещё идёт (до трёх часов после начала) или впереди
+  const all = ((DATA.stadium || {}).matches || []).filter(m => new Date(m.start) > now - 3 * 36e5 && new Date(m.start) < until);
+  if (!all.length) return "";
+  const onDays = all.filter(m => selected.includes(m.date));
+  const next = all.filter(m => !onDays.includes(m)).slice(0, 4);
+  let html = "";
+  if (onDays.length)
+    html += `<div class="notice stadium">⚽ <b>Football at Netanya Stadium next to the cinema</b>. Parking will be hard, come early.` +
+      `<ul>${onDays.map(m => `<li>${matchLine(m)}</li>`).join("")}</ul></div>`;
+  if (next.length)
+    html += `<details class="notice stadium-next"><summary>⚽ ${onDays.length ? "More" : "No"} matches at the stadium ` +
+      `${onDays.length ? "later" : "on these days"} · next: ${esc(fmtDay(next[0].date))}</summary>` +
+      `<ul>${next.map(m => `<li>${matchLine(m)}</li>`).join("")}</ul></details>`;
   return html;
 }
 
@@ -389,7 +427,7 @@ function render() {
   const days = selectedDays();
   const r = !days.length ? { html: "", shown: 0 }   // нет данных: остаётся только объяснение
     : state.view === "movies" ? renderMovies(days) : state.view === "timeline" ? renderTimeline(days) : renderSessions(days);
-  document.getElementById("main").innerHTML = statusNotice() + missingNotice() + r.html;
+  document.getElementById("main").innerHTML = statusNotice() + stadiumNotice() + missingNotice() + r.html;
   document.getElementById("count").textContent = `${r.shown} ${r.unit || "sessions"}`;
 }
 
@@ -437,6 +475,7 @@ async function init() {
     DATA.interesting = I = interesting;
     DATA.scenes = S = scenes;
     DATA.dossiers = index.dossiers || [];
+    DATA.stadium = index.stadium || {};
     DATA.days = await Promise.all(index.dates.map(d => loadJSON(`data/days/${d}.json`)));
   } catch (e) {
     document.getElementById("main").innerHTML =

@@ -5,6 +5,7 @@
   --bar: #b9c3cf; --bar-ink: #1d1c1a; --link: #1d4f91;
   --error-bg: #fbe1df; --error-line: #e8a29c;
   --warn-bg: #fff4c2; --warn-line: #e6cf6a;
+  --pitch-bg: #e6f2e8; --pitch-line: #2f7d4f;
   --stay-bg: #dcefe4; --stay-ink: #1f6b43; --star: #c98a00;
   --radius: 10px;
 }
@@ -16,6 +17,7 @@
     --bar: #56606c; --bar-ink: #f4f2ee; --link: #8fb8ee;
     --error-bg: #3d1916; --error-line: #7a2f29;
     --warn-bg: #3a3112; --warn-line: #6e5c1e;
+    --pitch-bg: #16301f; --pitch-line: #4f9e6c;
     --stay-bg: #173a28; --stay-ink: #8fd6ad; --star: #f2c66d;
   }
 }
@@ -76,6 +78,13 @@ select { border-radius: 8px; padding: 5px 8px; }
 .notice.error { background: var(--error-bg); border-color: var(--error-line); }
 .notice.warn { background: var(--warn-bg); border-color: var(--warn-line); }
 .notice code { font-size: 12px; word-break: break-word; }
+.notice .close { float: right; margin: -6px -8px 0 8px; border: 0; background: none; color: var(--ink-3);
+  font-size: 20px; line-height: 1; padding: 4px 6px; cursor: pointer; }
+.notice .close:hover { color: var(--ink); }
+.notice ul { margin: 6px 0 0; padding-left: 20px; }
+.notice.stadium { background: var(--pitch-bg); border-left: 4px solid var(--pitch-line); }
+.stadium-next { padding: 8px 16px; color: var(--ink-2); background: var(--surface-2); }
+.stadium-next summary { cursor: pointer; }
 
 /* Movies view */
 .movies { display: grid; gap: 12px; margin-top: 16px; }

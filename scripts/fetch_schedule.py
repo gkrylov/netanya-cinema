@@ -18,6 +18,7 @@ from common import (AVAILABILITY_FILE, DAYS_DIR, MOVIES_DIR, STATUS_FILE, now_il
 from fetch_movie import ensure_movie
 from fetch_credits import stay_label, update_credits
 from fetch_ratings import ratings_line, update_ratings
+from fetch_stadium import update_stadium
 
 
 def weekend_dates(today=None):
@@ -224,6 +225,10 @@ def collect():
             update_credits(slug)
         except Exception as e:  # сведения о сценах после титров не главное: сбор не роняем, но пишем в лог
             print(f"  Сцены после титров не проверены для {slug}: {e}")
+    try:  # матчи на стадионе рядом: другой источник, его сбой расписание не роняет
+        update_stadium()
+    except Exception as e:
+        warn("football matches at Netanya Stadium", e)
     for d, sessions in days:
         write_day(d, sessions)
         prime = sum(s["prime"] for s in sessions)

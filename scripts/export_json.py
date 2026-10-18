@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from common import (AVAILABILITY_FILE, DAYS_DIR, DOSSIERS_DIR, INTERESTING_FILE, MOVIES_DIR, ROOT,
-                    SCENES_FILE, STATUS_FILE, TZ, WATCHED_FILE, now_il, read_md)
+                    SCENES_FILE, STADIUM_FILE, STATUS_FILE, TZ, WATCHED_FILE, now_il, read_md)
 
 
 def movie_overview(body):
@@ -91,6 +91,16 @@ def load_day(path):
             "utc_offset": f"{offset[:3]}:{offset[3:]}", "sessions": sessions}
 
 
+def load_stadium():
+    """Матчи на стадионе рядом с кинотеатром, с сегодняшнего дня."""
+    if not STADIUM_FILE.exists():
+        return {"matches": []}
+    meta = read_md(STADIUM_FILE)[0]
+    today = now_il().date().isoformat()
+    return {"fetched_at": meta.get("fetched_at"),
+            "matches": [m for m in meta.get("matches") or [] if m["date"] >= today]}
+
+
 def dump(path, obj):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=1))
@@ -119,6 +129,7 @@ def export(out):
         "published_dates": avail.get("published_dates") or [],
         "status": status,
         "dossiers": sorted(dossiers),
+        "stadium": load_stadium(),
     })
     return out
 
