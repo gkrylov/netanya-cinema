@@ -245,18 +245,25 @@ function renderTimeline(days) {
 
 // ---------- movie card ----------
 function openCard(slug) {
-  const m = M[slug]; if (!m) return;
+  // Интересный фильм, которого ещё не было в расписании: карточки нет, есть название и, может быть, досье
+  const m = M[slug] || (I[slug] && { title_en: I[slug].title.replace(/\s*\(\d{4}\)$/, ""), year: (I[slug].title.match(/\((\d{4})\)$/) || [])[1] });
+  if (!m) return;
   const w = W[slug], fav = I[slug];
   const sessions = DATA.days.filter(d => selected.includes(d.date))
     .map(d => [d.date, d.sessions.filter(s => s.movie === slug)]).filter(([, l]) => l.length);
   const fact = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
   const score = (v, label, href) => v != null ? `<div class="score"><b>${href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v)}</b><span>${label}</span></div>` : "";
+  const links = [m.tmdb_id && `<a href="https://www.themoviedb.org/movie/${m.tmdb_id}" target="_blank" rel="noopener">TMDB</a>`,
+          m.imdb_id && `<a href="https://www.imdb.com/title/${m.imdb_id}/" target="_blank" rel="noopener">IMDb</a>`,
+          m.rt_url && `<a href="${esc(m.rt_url)}" target="_blank" rel="noopener">Rotten Tomatoes</a>`,
+          (m.cc_movie_id || []).length && `<a href="https://www.cinema-city.co.il/movie/${m.cc_movie_id[m.cc_movie_id.length - 1]}" target="_blank" rel="noopener">Cinema City</a>`]
+          .filter(Boolean).join(" · ");
   const dlg = document.getElementById("card");
   dlg.innerHTML = `<div class="card">
     <button class="close" aria-label="Close">×</button>
     <h2>${esc(m.title_en || m.title_he)}${m.year ? ` <span style="color:var(--ink-3);font-weight:400">(${m.year})</span>` : ""}</h2>
     ${m.title_original && m.title_original !== m.title_en ? `<div class="orig">${esc(m.title_original)}</div>` : ""}
-    <div class="orig" dir="rtl" style="text-align:left">${esc(m.title_he)}</div>
+    ${m.title_he ? `<div class="orig" dir="rtl" style="text-align:left">${esc(m.title_he)}</div>` : ""}
     ${fav ? `<div class="note star"><b>★ Interesting</b>${fav.added ? " · since " + esc(fav.added) : ""}${fav.note ? `<div>${esc(fav.note)}</div>` : ""}</div>` : ""}
     ${w ? `<div class="note"><b>✓ Watched</b>${w.watched ? " · " + esc(w.watched) : ""}${w.rating ? " · " + esc(w.rating) + "/10" : ""}${w.note ? `<div>${esc(w.note)}</div>` : ""}</div>` : ""}
     <div class="scores">
@@ -274,18 +281,14 @@ function openCard(slug) {
       ${fact("Budget", money(m.budget_usd))}
       ${fact("Box office", money(m.revenue_usd) && money(m.revenue_usd) + " worldwide")}
       ${fact("Dubbed version", m.dubbed_available ? "available" : "")}
-      ${fact("After the film", creditsFact(m))}
+      ${M[slug] ? fact("After the film", creditsFact(m)) : ""}
     </dl>
     ${S[slug] && S[slug].note ? `<div class="scenes">${renderMarkdown(S[slug].note)}</div>` : ""}
     ${m.overview ? m.overview.split(/\n\n+/).map(p => `<p>${esc(p)}</p>`).join("") : ""}
     ${sessions.length ? `<h3>Sessions</h3>` + sessions.map(([d, l]) =>
       `<div class="sess"><b style="min-width:110px">${dayShort(d)}</b>${l.map(s => `<span class="t ${rowClass(s)}">${timeLink(s)}${s.prime ? '<span class="badge">P</span>' : ""} <span class="meta">${esc(s.screen_language || "")}</span></span>`).join("")}</div>`).join("") : ""}
-    <h3>Links</h3>
-    <p>${[m.tmdb_id && `<a href="https://www.themoviedb.org/movie/${m.tmdb_id}" target="_blank" rel="noopener">TMDB</a>`,
-          m.imdb_id && `<a href="https://www.imdb.com/title/${m.imdb_id}/" target="_blank" rel="noopener">IMDb</a>`,
-          m.rt_url && `<a href="${esc(m.rt_url)}" target="_blank" rel="noopener">Rotten Tomatoes</a>`,
-          (m.cc_movie_id || []).length && `<a href="https://www.cinema-city.co.il/movie/${m.cc_movie_id[m.cc_movie_id.length - 1]}" target="_blank" rel="noopener">Cinema City</a>`]
-          .filter(Boolean).join(" · ")}</p>
+    ${M[slug] ? "" : `<p class="meta">Not in the collected schedule yet: the full card appears when the film is on.</p>`}
+    ${links ? `<h3>Links</h3><p>${links}</p>` : ""}
     ${DATA.dossiers.includes(slug) ? `<section class="dossier" id="dossier"><h3>Dossier</h3><p class="meta">Loading…</p></section>` : ""}
   </div>`;
   dlg.querySelector(".close").onclick = () => dlg.close();
@@ -377,6 +380,16 @@ document.addEventListener("click", e => {
   b.closest(".notice").remove();
 });
 
+// Интересные фильмы, которых нет в выбранные дни: чтобы досье и пометки можно было открыть заранее
+function interestingElsewhere() {
+  const playing = new Set(selectedDays().flatMap(d => d.sessions.map(s => s.movie)));
+  const list = Object.entries(I).filter(([slug]) => !playing.has(slug) && !(state.hidewatched && isWatched(slug)));
+  if (!list.length) return "";
+  return `<div class="notice also">★ Interesting, not on these days: ` + list.map(([slug, f]) =>
+    `<button class="title-btn" data-movie="${esc(slug)}">${esc(f.title)}</button>` +
+    (DATA.dossiers.includes(slug) ? ` <span class="meta">(dossier)</span>` : "")).join(" · ") + `</div>`;
+}
+
 // Матчи на стадионе рядом с кинотеатром: в такой день трудно с парковкой
 const STADIUM_AHEAD_DAYS = 42;
 function matchLine(m) {
@@ -427,7 +440,7 @@ function render() {
   const days = selectedDays();
   const r = !days.length ? { html: "", shown: 0 }   // нет данных: остаётся только объяснение
     : state.view === "movies" ? renderMovies(days) : state.view === "timeline" ? renderTimeline(days) : renderSessions(days);
-  document.getElementById("main").innerHTML = statusNotice() + stadiumNotice() + missingNotice() + r.html;
+  document.getElementById("main").innerHTML = statusNotice() + stadiumNotice() + missingNotice() + r.html + interestingElsewhere();
   document.getElementById("count").textContent = `${r.shown} ${r.unit || "sessions"}`;
 }
 

@@ -82,6 +82,8 @@ select { border-radius: 8px; padding: 5px 8px; }
   font-size: 20px; line-height: 1; padding: 4px 6px; cursor: pointer; }
 .notice .close:hover { color: var(--ink); }
 .notice ul { margin: 6px 0 0; padding-left: 20px; }
+.notice.also { background: var(--surface-2); color: var(--ink-2); }
+.notice.also .title-btn { font-size: 14px; color: var(--ink); }
 .notice.stadium { background: var(--pitch-bg); border-left: 4px solid var(--pitch-line); }
 .stadium-next { padding: 8px 16px; color: var(--ink-2); background: var(--surface-2); }
 .stadium-next summary { cursor: pointer; }
