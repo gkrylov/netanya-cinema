@@ -390,11 +390,23 @@ function interestingElsewhere() {
     (DATA.dossiers.includes(slug) ? ` <span class="meta">(dossier)</span>` : "")).join(" · ") + `</div>`;
 }
 
-// Матчи на стадионе рядом с кинотеатром: в такой день трудно с парковкой
+// Матчи на стадионе рядом с кинотеатром: в такой день трудно с парковкой.
+// Одна строка, по клику подробности с цветами команд.
 const STADIUM_AHEAD_DAYS = 42;
+const KIT = { yellow: "#ffd400", black: "#111", red: "#d01818", white: "#fff", blue: "#1f4fd1",
+  navy: "#14235a", green: "#1d8a3a", orange: "#f07a12", "sky blue": "#6cb4ee" };
+function team(name) {
+  const c = (DATA.stadium.colours || {})[name] || [];
+  if (!c.length) return `<b>${esc(name)}</b>`;
+  const stripes = c.map((x, i) => `${KIT[x] || x} ${i * 100 / c.length}% ${(i + 1) * 100 / c.length}%`).join(", ");
+  return `<span class="kit" style="background:linear-gradient(90deg, ${stripes})"></span><b>${esc(name)}</b>` +
+    ` <span class="meta">(${esc(c.join(" and "))})</span>`;
+}
+function matchWhen(m) {
+  return `${esc(fmtDay(m.date))}, ${m.tentative ? `~${esc(m.time)}` : esc(m.time)}`;
+}
 function matchLine(m) {
-  const when = m.tentative ? `~${esc(m.time)} (date and time TBC)` : esc(m.time);
-  return `${esc(fmtDay(m.date))}, ${when}: <b>${esc(m.home)}</b> vs <b>${esc(m.away)}</b>` +
+  return `${matchWhen(m)}${m.tentative ? " (date and time TBC)" : ""}: ${team(m.home)} vs ${team(m.away)}` +
     ` <span class="meta">${esc(m.league)}${m.postponed ? ", postponed" : ""}</span>`;
 }
 function stadiumNotice() {
@@ -404,15 +416,14 @@ function stadiumNotice() {
   if (!all.length) return "";
   const onDays = all.filter(m => selected.includes(m.date));
   const next = all.filter(m => !onDays.includes(m)).slice(0, 4);
-  let html = "";
-  if (onDays.length)
-    html += `<div class="notice stadium">⚽ <b>Football at Netanya Stadium next to the cinema</b>. Parking will be hard, come early.` +
-      `<ul>${onDays.map(m => `<li>${matchLine(m)}</li>`).join("")}</ul></div>`;
-  if (next.length)
-    html += `<details class="notice stadium-next"><summary>⚽ ${onDays.length ? "More" : "No"} matches at the stadium ` +
-      `${onDays.length ? "later" : "on these days"} · next: ${esc(fmtDay(next[0].date))}</summary>` +
-      `<ul>${next.map(m => `<li>${matchLine(m)}</li>`).join("")}</ul></details>`;
-  return html;
+  const list = ms => `<ul>${ms.map(m => `<li>${matchLine(m)}</li>`).join("")}</ul>`;
+  const summary = onDays.length
+    ? `⚽ <b>Football next to the cinema:</b> ` + onDays.map(m => `${matchWhen(m)} ${esc(m.home)} vs ${esc(m.away)}`).join("; ") +
+      `. Parking will be hard`
+    : `⚽ No match at the stadium · next: ${esc(fmtDay(next[0].date))}`;
+  return `<details class="notice stadium${onDays.length ? "" : " quiet"}"><summary>${summary}</summary>` +
+    (onDays.length ? `<p>Matches at Netanya Stadium, next to the cinema. Parking will be hard, come early.</p>${list(onDays)}` : "") +
+    (next.length ? `<p>${onDays.length ? "Later" : "Next matches"}:</p>${list(next)}` : "") + `</details>`;
 }
 
 // Выбранные даты без расписания: объяснить, до какого дня Cinema City его выложил

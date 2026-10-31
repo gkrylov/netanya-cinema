@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from common import (AVAILABILITY_FILE, DAYS_DIR, DOSSIERS_DIR, INTERESTING_FILE, MOVIES_DIR, ROOT,
-                    SCENES_FILE, STADIUM_FILE, STATUS_FILE, TZ, WATCHED_FILE, now_il, read_md)
+                    SCENES_FILE, STADIUM_FILE, STATUS_FILE, TEAMS_FILE, TZ, WATCHED_FILE, now_il, read_md)
 
 
 def movie_overview(body):
@@ -97,8 +97,10 @@ def load_stadium():
         return {"matches": []}
     meta = read_md(STADIUM_FILE)[0]
     today = now_il().date().isoformat()
+    teams = read_md(TEAMS_FILE)[0].get("teams") or [] if TEAMS_FILE.exists() else []
     return {"fetched_at": meta.get("fetched_at"),
-            "matches": [m for m in meta.get("matches") or [] if m["date"] >= today]}
+            "matches": [m for m in meta.get("matches") or [] if m["date"] >= today],
+            "colours": {t["team"]: t["colours"] for t in teams}}
 
 
 def dump(path, obj):

@@ -84,9 +84,13 @@ select { border-radius: 8px; padding: 5px 8px; }
 .notice ul { margin: 6px 0 0; padding-left: 20px; }
 .notice.also { background: var(--surface-2); color: var(--ink-2); }
 .notice.also .title-btn { font-size: 14px; color: var(--ink); }
-.notice.stadium { background: var(--pitch-bg); border-left: 4px solid var(--pitch-line); }
-.stadium-next { padding: 8px 16px; color: var(--ink-2); background: var(--surface-2); }
-.stadium-next summary { cursor: pointer; }
+.notice.stadium { background: var(--pitch-bg); border-left: 4px solid var(--pitch-line); padding-top: 8px; padding-bottom: 8px; }
+.notice.stadium.quiet { background: var(--surface-2); border-left-color: var(--line); color: var(--ink-2); }
+.notice.stadium summary { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notice.stadium[open] summary { white-space: normal; }
+.notice.stadium p { margin: 8px 0 0; }
+.notice .kit { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 5px;
+  vertical-align: -2px; border: 1px solid rgba(127,127,127,.6); }
 
 /* Movies view */
 .movies { display: grid; gap: 12px; margin-top: 16px; }

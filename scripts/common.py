@@ -29,6 +29,7 @@ DOSSIERS_DIR = DATA / "dossiers"
 AVAILABILITY_FILE = DATA / "availability.md"
 # Футбольные матчи на стадионе Нетании рядом с кинотеатром (парковка!)
 STADIUM_FILE = DATA / "stadium.md"
+TEAMS_FILE = DATA / "teams.md"
 # Итог последней попытки сбора (удалась ли, текст ошибки): его показывает страница
 STATUS_FILE = DATA / "status.md"
 
