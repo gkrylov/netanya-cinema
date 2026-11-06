@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Иконка сайта: билет в кино над морем Нетании -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2a27"/>
+      <stop offset="1" stop-color="#151514"/>
+    </linearGradient>
+    <linearGradient id="ticket" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6d27e"/>
+      <stop offset="1" stop-color="#d9962a"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#sky)"/>
+  <g transform="rotate(-12 32 28)">
+    <path fill="url(#ticket)" d="M12 15h40v8.5a4.5 4.5 0 0 0 0 9V41H12v-8.5a4.5 4.5 0 0 0 0-9z"/>
+    <path d="M40 17.5v21" stroke="#151514" stroke-width="1.6" stroke-dasharray="2.4 2.2" opacity=".55"/>
+    <path d="M22 21.5l11 6.5-11 6.5z" fill="#151514"/>
+  </g>
+  <path d="M6 50q6.5-4 13 0t13 0 13 0 13 0" fill="none" stroke="#4fb3bf" stroke-width="3" stroke-linecap="round"/>
+  <path d="M12 57q5-3 10 0t10 0 10 0 10 0" fill="none" stroke="#2f7f8a" stroke-width="2.6" stroke-linecap="round"/>
+</svg>
